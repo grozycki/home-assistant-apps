@@ -1,5 +1,5 @@
 name: "MCP Memory"
-description: "Local MCP memory server with vector search for Assist."
+description: "Local lightweight MCP memory server for Assist using SQLite FTS5."
 version: "1.0.0"
 slug: "mcp_memory"
 init: false

@@ -1,54 +1,85 @@
 import os
-from mcp.server.fastmcp import FastMCP
-import chromadb
-from sentence_transformers import SentenceTransformer
+import json
+import sqlite3
+from mcp.server.mcpserver import MCPServer
 
-# Retrieve default category injected by run.sh via bashio
-DEFAULT_CATEGORY = os.getenv("DEFAULT_CATEGORY", "general")
+# Bezpieczne wczytanie opcji bezpośrednio z pliku options.json w HA
+DEFAULT_CATEGORY = "general"
+options_path = "/data/options.json"
+if os.path.exists(options_path):
+    try:
+        with open(options_path, "r") as f:
+            options = json.load(f)
+            DEFAULT_CATEGORY = options.get("default_category", "general")
+    except Exception:
+        pass
 
-mcp = FastMCP("Local HA Memory")
+# Inicjalizacja serwera w standardzie MCP v2
+mcp = MCPServer("Local MCP Memory")
 
-DATA_PATH = "/data/chroma_db"
+DATA_PATH = "/data/memory_db"
 os.makedirs(DATA_PATH, exist_ok=True)
+DB_FILE = os.path.join(DATA_PATH, "memory.db")
 
-chroma_client = chromadb.PersistentClient(path=DATA_PATH)
-collection = chroma_client.get_or_create_collection(name="assist_memory")
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # Tabela wirtualna FTS5 dla szybkiego wyszukiwania pełnotekstowego
+    cursor.execute('''
+        CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+            fact,
+            category
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
-
+init_db()
 
 @mcp.tool()
 def remember_fact(fact: str, category: str = DEFAULT_CATEGORY) -> str:
-    """Store important facts, preferences, or details into the local vector database."""
-    embedding = embedder.encode(fact).tolist()
-    doc_id = f"mem_{collection.count() + 1}"
-
-    collection.add(
-        documents=[fact],
-        embeddings=[embedding],
-        metadatas=[{"category": category}],
-        ids=[doc_id]
-    )
-    return f"Successfully memorized with ID: {doc_id}"
-
+    """Store important facts, preferences, or details into the local text memory database."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO memories_fts (fact, category) VALUES (?, ?)", (fact, category))
+    conn.commit()
+    conn.close()
+    return f"Successfully memorized fact under category '{category}'."
 
 @mcp.tool()
 def search_memory(query: str, n_results: int = 3) -> str:
-    """Perform semantic search over stored memories to retrieve context."""
-    query_embedding = embedder.encode(query).tolist()
+    """Perform full-text search over stored local memories to retrieve relevant context."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT fact, category FROM memories_fts WHERE memories_fts MATCH ? LIMIT ?", (query, n_results))
+        rows = cursor.fetchall()
+    except sqlite3.OperationalError:
+        cursor.execute("SELECT fact, category FROM memories_fts LIMIT ?", (n_results,))
+        rows = cursor.fetchall()
+    conn.close()
 
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=n_results
-    )
+    if not rows:
+        return "No matching memories found in the local database."
 
-    if not results["documents"] or not results["documents"][0]:
-        return "No matching memories found."
+    results = [f"[{row[1]}] {row[0]}" for row in rows]
+    return str(results)
 
-    return str(results["documents"][0])
+@mcp.tool()
+def list_all_memories() -> str:
+    """List all stored facts and memories from the local database."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("rowid, fact, category FROM memories_fts")
+    rows = cursor.fetchall()
+    conn.close()
 
+    if not rows:
+        return "The memory database is currently empty."
+
+    memories = [f"ID: {row[0]} | Category: {row[2]} | Fact: {row[1]}" for row in rows]
+    return "\n".join(memories)
 
 if __name__ == "__main__":
-    mcp.settings.port = 8000
-    mcp.settings.host = "0.0.0.0"
-    mcp.run(transport="sse")
+    # W MCP v2 parametry sieciowe przekazujemy bezpośrednio do run()
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
