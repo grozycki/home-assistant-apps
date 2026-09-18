@@ -3,7 +3,6 @@ import json
 import sqlite3
 from mcp.server.mcpserver import MCPServer
 
-# Bezpieczne wczytanie opcji bezpośrednio z pliku options.json w HA
 DEFAULT_CATEGORY = "general"
 options_path = "/data/options.json"
 if os.path.exists(options_path):
@@ -14,7 +13,6 @@ if os.path.exists(options_path):
     except Exception:
         pass
 
-# Inicjalizacja serwera w standardzie MCP v2
 mcp = MCPServer("Local MCP Memory")
 
 DATA_PATH = "/data/memory_db"
@@ -24,7 +22,6 @@ DB_FILE = os.path.join(DATA_PATH, "memory.db")
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Tabela wirtualna FTS5 dla szybkiego wyszukiwania pełnotekstowego
     cursor.execute('''
         CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
             fact,
@@ -70,7 +67,7 @@ def list_all_memories() -> str:
     """List all stored facts and memories from the local database."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("rowid, fact, category FROM memories_fts")
+    cursor.execute("SELECT rowid, fact, category FROM memories_fts")
     rows = cursor.fetchall()
     conn.close()
 
@@ -81,5 +78,4 @@ def list_all_memories() -> str:
     return "\n".join(memories)
 
 if __name__ == "__main__":
-    # W MCP v2 parametry sieciowe przekazujemy bezpośrednio do run()
     mcp.run(transport="sse", host="0.0.0.0", port=8000)
