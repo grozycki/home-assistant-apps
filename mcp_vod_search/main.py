@@ -20,7 +20,7 @@ def get_streaming_providers(title: str, country: str = "US", language: str = "en
             return f"No results found for the title: {title}"
 
         item = results[0]
-        response_lines = [f"Title: {item.title} ({item.cinema_release_date or 'No release date'})"]
+        response_lines = [f"Title: {item.title}"]
         response_lines.append("Available streaming providers and offers:")
 
         if not item.offers:
@@ -33,6 +33,7 @@ def get_streaming_providers(title: str, country: str = "US", language: str = "en
 
     except Exception as e:
         return f"An error occurred while querying JustWatch: {str(e)}"
+
 
 
 if __name__ == "__main__":
