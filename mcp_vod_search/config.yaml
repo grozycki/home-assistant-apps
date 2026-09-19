@@ -1,6 +1,6 @@
 name: "MCP VOD Search"
 description: "Search for VODs in the MCP"
-version: "0.0.6"
+version: "0.0.7"
 slug: "mcp_vod_search"
 init: false
 arch:
