@@ -9,3 +9,9 @@ arch:
 startup: services
 ports:
   8101/tcp: 8101
+options:
+  country: "UK"
+  language: "en"
+schema:
+  country: str
+  language: str

@@ -1,11 +1,15 @@
 from simplejustwatchapi import search
 from fastmcp import FastMCP
+import os
+
+DEFAULT_COUNTRY = os.getenv("COUNTRY", "UK")
+DEFAULT_LANG = os.getenv("LANGUAGE", "en")
 
 mcp = FastMCP("VOD Search Tool")
 
 
 @mcp.tool()
-def get_streaming_providers(title: str, country: str = "US", language: str = "en") -> str:
+def get_streaming_providers(title: str, country: str = DEFAULT_COUNTRY, language: str = DEFAULT_LANG) -> str:
     """
     Search for a movie or TV show title and retrieve available streaming providers and direct links.
 

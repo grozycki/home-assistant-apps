@@ -1,8 +1,7 @@
 #!/usr/bin/with-contenv bashio
 
-#echo "Hello world!"
-#
-#python3 -m http.server 8000
+export COUNTRY=$(bashio::config 'country')
+export LANGUAGE=$(bashio::config 'language')
 
 # Start the MCP server
 exec python3 /main.py
