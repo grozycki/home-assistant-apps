@@ -1,0 +1,11 @@
+name: "MCP VOD Search"
+description: "Search for VODs in the MCP"
+version: "0.0.1"
+slug: "mcp_vod_search"
+init: false
+arch:
+  - aarch64
+  - amd64
+startup: services
+ports:
+  8000/tcp: 8101

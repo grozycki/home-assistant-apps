@@ -10,7 +10,6 @@ RUN \
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Install MCP, vector database, and embedding tools
 RUN pip3 install --no-cache-dir \
     mcp \
     uvicorn
