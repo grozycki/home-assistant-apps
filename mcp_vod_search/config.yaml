@@ -1,6 +1,6 @@
 name: "MCP VOD Search"
 description: "Search for VODs in the MCP"
-version: "0.0.3"
+version: "0.0.4"
 slug: "mcp_vod_search"
 init: false
 arch:
@@ -8,4 +8,4 @@ arch:
   - amd64
 startup: services
 ports:
-  8000/tcp: 8101
+  8101/tcp: 8101
