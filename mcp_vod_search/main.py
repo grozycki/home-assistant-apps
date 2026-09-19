@@ -5,16 +5,17 @@ mcp = FastMCP("VOD Search Tool")
 
 
 @mcp.tool()
-def get_streaming_providers(title: str, country: str = "EN") -> str:
+def get_streaming_providers(title: str, country: str = "US", language: str = "en") -> str:
     """
     Search for a movie or TV show title and retrieve available streaming providers and direct links.
 
     Args:
         title: The title of the movie or TV show to search for.
-        country: Two-letter country code (defaults to "EN").
+        country: Two-letter country code (defaults to "US").
+        language: Two-letter language code (defaults to "en").
     """
     try:
-        results = search(title, country=country, language="en", count=1)
+        results = search(title, country=country, language=language, count=1)
         if not results:
             return f"No results found for the title: {title}"
 
