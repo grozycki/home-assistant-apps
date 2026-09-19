@@ -17,8 +17,8 @@ RUN uv pip install fastmcp simple-justwatch-python-api
 # So let's set it to our app persistent data directory.
 WORKDIR /data
 
-# Copy data for app
 COPY run.sh /
+COPY main.py /
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
