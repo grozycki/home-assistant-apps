@@ -1,12 +1,13 @@
 import os
 import sqlite3
-from fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("Local Memory")
+mcp = MCPServer("Local MCP Memory")
 
 DATA_PATH = "/data/memory_db"
 os.makedirs(DATA_PATH, exist_ok=True)
 DB_FILE = os.path.join(DATA_PATH, "memoryV2.db")
+
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -20,30 +21,42 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 init_db()
 
 
 @mcp.tool()
 def remember_fact(fact: str, pipeline_id: str, is_global: bool = False) -> str:
-    """Store facts, preferences, or details. If is_global is True, it will be shared across all assistants."""
+    """
+    Store facts, preferences, or details in the database.
+
+    Args:
+        fact: The specific information to remember.
+        pipeline_id: CRITICAL - Do NOT use 'default'. You MUST extract the actual pipeline or satellite ID provided to you in your system prompt/metadata (e.g. 01m2w...).
+        is_global: Set to True ONLY if the user explicitly wants this applied to the whole house/all devices.
+    """
     target_pipeline = "global" if is_global else pipeline_id
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO memories_fts (fact, pipeline_id) VALUES (?, ?)",
-        (fact, target_pipeline)
-    )
+    cursor.execute("INSERT INTO memories_fts (fact, pipeline_id) VALUES (?, ?)", (fact, target_pipeline))
     conn.commit()
     conn.close()
 
-    scope_name = "GLOBALLY" if is_global else f"locally for pipeline '{pipeline_id}'"
-    return f"Successfully memorized fact {scope_name}."
+    scope = "GLOBALLY" if is_global else f"locally for '{pipeline_id}'"
+    return f"Successfully memorized fact {scope}."
 
 
 @mcp.tool()
 def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
-    """Perform full-text search over stored memories. Searches local pipeline memories first, then falls back to global."""
+    """
+    Perform full-text search over stored memories.
+
+    Args:
+        query: The search keywords.
+        pipeline_id: CRITICAL - Do NOT use 'default'. You MUST use your actual pipeline ID from your system prompt.
+        n_results: Maximum number of results to return.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
@@ -63,27 +76,25 @@ def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
             return cursor.fetchall()
 
     rows = do_search(pipeline_id)
-
     if not rows:
         rows = do_search("global")
-
     conn.close()
 
     if not rows:
-        return f"No matching memories found for pipeline '{pipeline_id}' or globally."
+        return f"No matching memories found for '{pipeline_id}' or globally."
 
-    results = []
-    for row in rows:
-        # row[0] = rowid, row[1] = fact, row[2] = pipeline_id
-        scope = "GLOBAL" if row[2] == "global" else "LOCAL"
-        results.append(f"ID: {row[0]} | [{scope}] {row[1]}")
-
+    results = [f"ID: {row[0]} | [{'GLOBAL' if row[2] == 'global' else 'LOCAL'}] {row[1]}" for row in rows]
     return "\n".join(results)
 
 
 @mcp.tool()
 def list_all_memories(pipeline_id: str) -> str:
-    """List all stored facts for the specific pipeline AND all global facts."""
+    """
+    List all stored facts for the specific pipeline AND all global facts.
+
+    Args:
+        pipeline_id: CRITICAL - Do NOT use 'default'. Use your actual pipeline ID.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
@@ -94,18 +105,22 @@ def list_all_memories(pipeline_id: str) -> str:
     conn.close()
 
     if not rows:
-        return f"The memory database for pipeline '{pipeline_id}' (including global) is currently empty."
+        return f"Database is empty."
 
-    memories = []
-    for row in rows:
-        scope = "GLOBAL" if row[2] == "global" else "LOCAL"
-        memories.append(f"ID: {row[0]} | Scope: {scope} | Fact: {row[1]}")
+    memories = [f"ID: {row[0]} | Scope: {'GLOBAL' if row[2] == 'global' else 'LOCAL'} | Fact: {row[1]}" for row in rows]
     return "\n".join(memories)
 
 
 @mcp.tool()
 def update_memory(rowid: int, new_fact: str, pipeline_id: str) -> str:
-    """Update an existing memory's fact text by its ID. Cannot change the scope (local/global)."""
+    """
+    Update an existing memory's fact text by its ID.
+
+    Args:
+        rowid: The numeric ID of the memory to update.
+        new_fact: The new text of the fact.
+        pipeline_id: CRITICAL - Do NOT use 'default'. Use your actual pipeline ID.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
@@ -116,14 +131,18 @@ def update_memory(rowid: int, new_fact: str, pipeline_id: str) -> str:
     conn.commit()
     conn.close()
 
-    if updated > 0:
-        return f"Successfully updated memory with ID {rowid}."
-    return f"Failed. No memory found with ID {rowid} for this pipeline or globally."
+    return f"Successfully updated memory {rowid}." if updated > 0 else "Failed."
 
 
 @mcp.tool()
 def delete_memory(rowid: int, pipeline_id: str) -> str:
-    """Delete a previously stored memory by its ID."""
+    """
+    Delete a previously stored memory by its ID.
+
+    Args:
+        rowid: The numeric ID of the memory to delete.
+        pipeline_id: CRITICAL - Do NOT use 'default'. Use your actual pipeline ID.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
@@ -134,9 +153,7 @@ def delete_memory(rowid: int, pipeline_id: str) -> str:
     conn.commit()
     conn.close()
 
-    if deleted > 0:
-        return f"Successfully deleted memory with ID {rowid}."
-    return f"Failed. No memory found with ID {rowid} for this pipeline or globally."
+    return f"Successfully deleted memory {rowid}." if deleted > 0 else "Failed."
 
 
 if __name__ == "__main__":
