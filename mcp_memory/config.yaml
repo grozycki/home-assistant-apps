@@ -1,6 +1,6 @@
 name: "MCP Memory"
 description: "Local lightweight MCP memory server for Assist using SQLite FTS5."
-version: "1.0.1"
+version: "0.0.2"
 slug: "mcp_memory"
 init: false
 arch:
@@ -9,7 +9,3 @@ arch:
 startup: services
 ports:
   8000/tcp: 8000
-options:
-  default_category: "general"
-schema:
-  default_category: str

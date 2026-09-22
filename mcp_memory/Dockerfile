@@ -4,15 +4,12 @@ FROM $BUILD_FROM
 RUN \
   apk add --no-cache \
     python3 \
-    py3-pip \
-    python3-dev
+    py3-uv
 
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip3 install --no-cache-dir \
-    mcp \
-    uvicorn
+RUN uv pip install --upgrade fastmcp
 
 WORKDIR /data
 
