@@ -1,8 +1,8 @@
 import os
 import sqlite3
-from mcp.server.mcpserver import MCPServer
+from fastmcp import FastMCP
 
-mcp = MCPServer("Local MCP Memory")
+mcp = FastMCP("Local Memory")
 
 DATA_PATH = "/data/memory_db"
 os.makedirs(DATA_PATH, exist_ok=True)
