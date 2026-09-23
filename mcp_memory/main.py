@@ -34,7 +34,7 @@ def remember_fact(fact: str, pipeline_id: str, is_global: bool = False) -> str:
 
     Args:
         fact: The specific information to remember.
-        pipeline_id: CRITICAL - The 26-character alphanumeric string (e.g., '01m2wsyf8gna2s6v300gp3z9nv') identifying your specific Home Assistant pipeline configuration. You MUST extract this exact 26-character ID from your context. DO NOT use 'default'.
+        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant Voice pipeline.
         is_global: Set to True ONLY if the user explicitly wants this applied to the whole house/all devices.
     """
     target_pipeline = "global" if is_global else pipeline_id
@@ -60,7 +60,7 @@ def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
 
     Args:
         query: The search keywords.
-        pipeline_id: CRITICAL - The 26-character alphanumeric string (e.g., '01m2wsyf8gna2s6v300gp3z9nv') identifying your specific Home Assistant pipeline configuration. DO NOT use 'default'.
+        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant Voice pipeline.
         n_results: Maximum number of results to return.
     """
     conn = sqlite3.connect(DB_FILE)
@@ -89,7 +89,6 @@ def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
     if not rows:
         return f"No matching memories found for '{pipeline_id}' or globally."
 
-    # Zwracamy modelowi informację wraz z datą
     results = [f"ID: {row[0]} | [{'GLOBAL' if row[2] == 'global' else 'LOCAL'}] [{row[3]}] {row[1]}" for row in rows]
     return "\n".join(results)
 
@@ -100,7 +99,7 @@ def list_all_memories(pipeline_id: str) -> str:
     List all stored facts for the specific pipeline AND all global facts.
 
     Args:
-        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant pipeline. DO NOT use 'default'.
+        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant Voice pipeline.
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -128,7 +127,7 @@ def update_memory(rowid: int, new_fact: str, pipeline_id: str) -> str:
     Args:
         rowid: The numeric ID of the memory to update.
         new_fact: The new text of the fact.
-        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant pipeline. DO NOT use 'default'.
+        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant Voice pipeline.
     """
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DB_FILE)
@@ -151,7 +150,7 @@ def delete_memory(rowid: int, pipeline_id: str) -> str:
 
     Args:
         rowid: The numeric ID of the memory to delete.
-        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant pipeline. DO NOT use 'default'.
+        pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant Voice pipeline.
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
