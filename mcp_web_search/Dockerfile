@@ -9,7 +9,7 @@ RUN \
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN uv pip install --upgrade fastmcp duckduckgo-search trafilatura httpx
+RUN uv pip install fastmcp duckduckgo-search trafilatura httpx
 
 WORKDIR /data
 
