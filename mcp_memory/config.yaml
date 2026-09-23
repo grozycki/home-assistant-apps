@@ -1,6 +1,6 @@
 name: "MCP Memory"
 description: "Local lightweight MCP memory server for Assist using SQLite FTS5."
-version: "1.0.4"
+version: "1.0.5"
 slug: "mcp_memory"
 init: false
 arch:

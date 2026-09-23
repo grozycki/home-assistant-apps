@@ -1,12 +1,13 @@
 import os
 import sqlite3
+from datetime import datetime
 from fastmcp import FastMCP
 
 mcp = FastMCP("Local Memory")
 
 DATA_PATH = "/data/memory_db"
 os.makedirs(DATA_PATH, exist_ok=True)
-DB_FILE = os.path.join(DATA_PATH, "memoryV2.db")
+DB_FILE = os.path.join(DATA_PATH, "memoryV3.db")
 
 
 def init_db():
@@ -15,7 +16,8 @@ def init_db():
     cursor.execute('''
         CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
             fact,
-            pipeline_id UNINDEXED
+            pipeline_id UNINDEXED,
+            timestamp UNINDEXED
         )
     ''')
     conn.commit()
@@ -36,15 +38,19 @@ def remember_fact(fact: str, pipeline_id: str, is_global: bool = False) -> str:
         is_global: Set to True ONLY if the user explicitly wants this applied to the whole house/all devices.
     """
     target_pipeline = "global" if is_global else pipeline_id
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO memories_fts (fact, pipeline_id) VALUES (?, ?)", (fact, target_pipeline))
+    cursor.execute(
+        "INSERT INTO memories_fts (fact, pipeline_id, timestamp) VALUES (?, ?, ?)",
+        (fact, target_pipeline, current_time)
+    )
     conn.commit()
     conn.close()
 
     scope = "GLOBALLY" if is_global else f"locally for '{pipeline_id}'"
-    return f"Successfully memorized fact {scope}."
+    return f"Successfully memorized fact {scope} at {current_time}."
 
 
 @mcp.tool()
@@ -63,14 +69,14 @@ def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
     def do_search(pid: str):
         try:
             cursor.execute(
-                "SELECT rowid, fact, pipeline_id FROM memories_fts WHERE memories_fts MATCH ? AND pipeline_id = ? LIMIT ?",
+                "SELECT rowid, fact, pipeline_id, timestamp FROM memories_fts WHERE memories_fts MATCH ? AND pipeline_id = ? LIMIT ?",
                 (query, pid, n_results)
             )
             return cursor.fetchall()
         except sqlite3.OperationalError:
             safe_query = f"%{query}%"
             cursor.execute(
-                "SELECT rowid, fact, pipeline_id FROM memories_fts WHERE fact LIKE ? AND pipeline_id = ? LIMIT ?",
+                "SELECT rowid, fact, pipeline_id, timestamp FROM memories_fts WHERE fact LIKE ? AND pipeline_id = ? LIMIT ?",
                 (safe_query, pid, n_results)
             )
             return cursor.fetchall()
@@ -83,7 +89,8 @@ def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
     if not rows:
         return f"No matching memories found for '{pipeline_id}' or globally."
 
-    results = [f"ID: {row[0]} | [{'GLOBAL' if row[2] == 'global' else 'LOCAL'}] {row[1]}" for row in rows]
+    # Zwracamy modelowi informację wraz z datą
+    results = [f"ID: {row[0]} | [{'GLOBAL' if row[2] == 'global' else 'LOCAL'}] [{row[3]}] {row[1]}" for row in rows]
     return "\n".join(results)
 
 
@@ -98,7 +105,7 @@ def list_all_memories(pipeline_id: str) -> str:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT rowid, fact, pipeline_id FROM memories_fts WHERE pipeline_id IN (?, 'global')",
+        "SELECT rowid, fact, pipeline_id, timestamp FROM memories_fts WHERE pipeline_id IN (?, 'global')",
         (pipeline_id,)
     )
     rows = cursor.fetchall()
@@ -107,7 +114,9 @@ def list_all_memories(pipeline_id: str) -> str:
     if not rows:
         return f"Database is empty."
 
-    memories = [f"ID: {row[0]} | Scope: {'GLOBAL' if row[2] == 'global' else 'LOCAL'} | Fact: {row[1]}" for row in rows]
+    memories = [
+        f"ID: {row[0]} | Scope: {'GLOBAL' if row[2] == 'global' else 'LOCAL'} | Saved: {row[3]} | Fact: {row[1]}" for
+        row in rows]
     return "\n".join(memories)
 
 
@@ -121,17 +130,18 @@ def update_memory(rowid: int, new_fact: str, pipeline_id: str) -> str:
         new_fact: The new text of the fact.
         pipeline_id: CRITICAL - The 26-character alphanumeric string identifying your specific Home Assistant pipeline. DO NOT use 'default'.
     """
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        "UPDATE memories_fts SET fact = ? WHERE rowid = ? AND pipeline_id IN (?, 'global')",
-        (new_fact, rowid, pipeline_id)
+        "UPDATE memories_fts SET fact = ?, timestamp = ? WHERE rowid = ? AND pipeline_id IN (?, 'global')",
+        (new_fact, current_time, rowid, pipeline_id)
     )
     updated = cursor.rowcount
     conn.commit()
     conn.close()
 
-    return f"Successfully updated memory {rowid}." if updated > 0 else "Failed."
+    return f"Successfully updated memory {rowid} at {current_time}." if updated > 0 else "Failed."
 
 
 @mcp.tool()
