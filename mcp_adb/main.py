@@ -85,12 +85,21 @@ def run_app(package_name: str, media_uri: str = "") -> str:
         device.connect(rsa_keys=[signer], auth_timeout_s=5)
 
         if media_uri:
-            # Force stop the app first to clear background state / profile prompts, then start with URI
-            logger.info(f"Force stopping {package_name} to ensure clean deep link launch...")
+            # Force stop the app first to clear background state
+            logger.info(f"Force stopping {package_name} to ensure clean launch...")
             device.shell(f"am force-stop {package_name}")
 
-            command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
-            logger.info(f"Launching app with media URI: {command}")
+            # Convert web URL to Netflix internal URI scheme if applicable,
+            # or pass the explicit intent with component structure
+            if "netflix.com/title/" in media_uri:
+                title_id = media_uri.split("/title/")[-1].split("/")[0]
+                # Netflix internal URI scheme for Android TV
+                nflx_uri = f"nflx://www.netflix.com/title/{title_id}"
+                command = f"am start -a android.intent.action.VIEW -d '{nflx_uri}' {package_name}"
+            else:
+                command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
+
+            logger.info(f"Launching app with deep link: {command}")
         else:
             command = f"am start -n {package_name}/.MainActivity || monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
             logger.info(f"Launching app standard way: {command}")
@@ -148,6 +157,38 @@ def get_device_status() -> str:
     except Exception as e:
         logger.error(f"Error fetching device status: {e}")
         return f"Error fetching device status (Check authorization): {e}"
+
+
+@mcp.tool()
+def list_installed_apps(third_party_only: bool = True) -> str:
+    """
+    Retrieve a list of installed applications on the Android device.
+
+    Args:
+        third_party_only: If True, lists only user-installed apps. If False, lists all packages.
+    """
+    try:
+        device = AdbDeviceTcp(DEVICE_IP, PORT)
+        signer = get_adb_signer()
+
+        device.connect(rsa_keys=[signer], auth_timeout_s=5)
+
+        # -3 flag filters out system apps and shows only third-party (user) installed apps
+        flag = "-3" if third_party_only else ""
+        command = f"pm list packages {flag}"
+
+        logger.info(f"Fetching installed apps with command: {command}")
+        result = device.shell(command)
+        device.close()
+
+        # Clean up output format (remove 'package:' prefix for cleaner reading)
+        cleaned_apps = "\n".join([line.replace("package:", "").strip() for line in result.splitlines() if line.strip()])
+
+        return f"Installed Applications on {DEVICE_IP}:{PORT}:\n{cleaned_apps}"
+
+    except Exception as e:
+        logger.error(f"Error listing installed apps: {e}")
+        return f"Error listing installed apps (Check authorization): {e}"
 
 
 if __name__ == "__main__":
