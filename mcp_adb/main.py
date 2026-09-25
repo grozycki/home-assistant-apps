@@ -94,6 +94,37 @@ def run_app(package_name: str) -> str:
 
 
 @mcp.tool()
+def play_media_content(package_name: str, media_uri: str) -> str:
+    """
+    Run a specific video or media content inside an application on the Android device
+    using Android Intent URI (Deep Linking).
+
+    Args:
+        package_name: The package name of the app (e.g., 'com.google.android.youtube.tv' or 'com.netflix.ninja')
+        media_uri: The deep link URI or web link to the specific video (e.g., 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+    """
+    try:
+        device = AdbDeviceTcp(DEVICE_IP, PORT)
+        signer = get_adb_signer()
+
+        device.connect(rsa_keys=[signer], auth_timeout_s=5)
+
+        # Construct the am start command with an ACTION_VIEW intent and the specific URI
+        command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
+        logger.info(f"Sending intent command: {command}")
+
+        result = device.shell(command)
+        device.close()
+
+        return f"Successfully triggered media URI '{media_uri}' in {package_name} on {DEVICE_IP}:{PORT}. Output: {result}"
+
+    except Exception as e:
+        logger.error(f"Error starting specific media via ADB: {e}")
+        return f"Error starting specific media via ADB: {e}"
+
+
+
+@mcp.tool()
 def get_device_status() -> str:
     """
     Retrieve comprehensive status of the configured Android device, including power state,
@@ -117,8 +148,8 @@ def get_device_status() -> str:
         # 4. Fetch active media session details (titles, playback state, position)
         media_output = device.shell("dumpsys media_session")
 
-        # 5. Fetch audio / volume manager details to check current volume levels
-        audio_output = device.shell("dumpsys audio | grep -E '- Stream|Current Volume Index'")
+        # 5. Fetch simplified volume info safely
+        audio_output = device.shell("dumpsys audio | grep -m 5 'Volume'")
 
         device.close()
 
