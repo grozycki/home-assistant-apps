@@ -1,6 +1,6 @@
 #include
 
-profile mcp_memory flags=(attach_disconnected,mediate_deleted) {
+profile app_0051c444_mcp_memory flags=(attach_disconnected,mediate_deleted) {
   #include
 
   # Capabilities
