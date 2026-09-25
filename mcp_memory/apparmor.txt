@@ -1,7 +1,7 @@
-#include
+#include <tunables/global>
 
-profile app_0051c444_mcp_memory flags=(attach_disconnected,mediate_deleted) {
-  #include
+profile mcp_memory flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
 
   # Capabilities
   file,
@@ -24,36 +24,29 @@ profile app_0051c444_mcp_memory flags=(attach_disconnected,mediate_deleted) {
   /usr/lib/bashio/** ix,
   /tmp/** rwk,
 
-  # Access to data dir within your app (main profile)
+  # Access to options.json and other files within your addon
   /data/** rw,
 
-  # Zezwolenie na uruchomienie skryptu startowego
-  /run.sh ix,
+  # Start new profile for service
+  /usr/bin/myprogram cx -> myprogram,
 
-  # Start new profile for service (przejście do procesu Pythona)
-  /opt/venv/bin/python* cx -> mcp_service,
+  profile myprogram flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
 
-  profile mcp_service flags=(attach_disconnected,mediate_deleted) {
-    #include
+    # Receive signals from S6-Overlay
+    signal (receive) peer=*_ADDON_SLUG,
 
-    # Receive signals from S6-Overlay (dopasowane do nazwy profilu)
-    signal (receive) peer=*_mcp_memory,
+    # Access to options.json and other files within your addon
+    /data/** rw,
 
-    # Access to memory_db and options.json
-    # "k" jest wymagane do blokowania pliku bazy SQLite!
-    /data/** rwk,
+    # Access to mapped volumes specified in config.json
+    /share/** rw,
 
     # Access required for service functionality
-    /main.py r,
-    /opt/venv/** rmix,
-    /usr/bin/python* rmix,
+    /usr/bin/myprogram r,
     /bin/bash rix,
-    /bin/sh rix,
     /bin/echo ix,
     /etc/passwd r,
     /dev/tty rw,
-
-    # FastMCP wymaga dostępu do sieci, aby nasłuchiwać portu 8000
-    network,
   }
 }
