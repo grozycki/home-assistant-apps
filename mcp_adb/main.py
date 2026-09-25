@@ -96,7 +96,8 @@ def run_app(package_name: str) -> str:
 @mcp.tool()
 def get_device_status() -> str:
     """
-    Retrieve the status of the configured Android device, including the active foreground application and screen wakefulness.
+    Retrieve comprehensive status of the configured Android device, including power state,
+    active foreground application, window focus, media session details (title, progress), and volume level.
     """
     try:
         device = AdbDeviceTcp(DEVICE_IP, PORT)
@@ -104,18 +105,38 @@ def get_device_status() -> str:
 
         device.connect(rsa_keys=[signer], auth_timeout_s=5)
 
-        # Fetch current active application on the foreground
-        app_output = device.shell("dumpsys activity activities | grep mResumedActivity")
-        # Fetch power and screen wakefulness state
+        # 1. Fetch power and screen wakefulness state
         power_output = device.shell("dumpsys power | grep 'mWakefulness='")
+
+        # 2. Fetch current active application on the foreground
+        app_output = device.shell("dumpsys activity activities | grep mResumedActivity")
+
+        # 3. Fetch window focus details (useful for app context)
+        window_output = device.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+
+        # 4. Fetch active media session details (titles, playback state, position)
+        media_output = device.shell("dumpsys media_session")
+
+        # 5. Fetch audio / volume manager details to check current volume levels
+        audio_output = device.shell("dumpsys audio | grep -E '- Stream|Current Volume Index'")
 
         device.close()
 
-        return f"Power state: {power_output.strip()}\nActive application: {app_output.strip()}"
+        # Truncate long outputs to keep context clean for the AI model
+        media_trimmed = media_output[:1500] if len(media_output) > 1500 else media_output
+        audio_trimmed = audio_output[:1000] if len(audio_output) > 1000 else audio_output
+
+        return (
+            f"=== POWER STATE ===\n{power_output.strip()}\n\n"
+            f"=== FOREGROUND APP ===\n{app_output.strip()}\n\n"
+            f"=== WINDOW FOCUS ===\n{window_output.strip()}\n\n"
+            f"=== AUDIO / VOLUME ===\n{audio_trimmed.strip()}\n\n"
+            f"=== MEDIA SESSIONS ===\n{media_trimmed.strip()}"
+        )
 
     except Exception as e:
         logger.error(f"Error fetching device status: {e}")
-        return f"Error fetching device status: {e}"
+        return f"Error fetching device status (Check authorization): {e}"
 
 
 if __name__ == "__main__":
