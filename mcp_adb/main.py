@@ -40,6 +40,36 @@ def get_adb_signer(key_path: str = "/data/adbkey") -> PythonRSASigner:
 
 
 @mcp.tool()
+def check_connection_and_pair() -> str:
+    """
+    Test the connection to the Android device and verify RSA key authorization.
+    If the device prompts for authorization, accept it on the physical screen.
+    """
+    try:
+        device = AdbDeviceTcp(DEVICE_IP, PORT)
+        signer = get_adb_signer()
+
+        logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{PORT}...")
+        # Try to connect with a short timeout
+        device.connect(rsa_keys=[signer], auth_timeout_s=5)
+
+        # Run a simple shell command to verify the session is fully authorized
+        test_output = device.shell("echo 'Connection active'")
+        device.close()
+
+        return f"Successfully connected and authorized with {DEVICE_IP}:{PORT}. Response: {test_output.strip()}"
+
+    except Exception as e:
+        logger.error(f"Authorization or connection failed: {e}")
+        return (
+            f"Failed to connect or authorize with {DEVICE_IP}:{PORT}. Error: {e}. "
+            "Please check if the device is turned on, network debugging is enabled, "
+            "and look at the physical screen of your Android device to accept the RSA key prompt."
+        )
+
+
+
+@mcp.tool()
 def run_app(package_name: str) -> str:
     """
     Run an application on the configured Android device using the monkey command.
