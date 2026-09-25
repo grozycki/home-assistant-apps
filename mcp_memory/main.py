@@ -1,7 +1,9 @@
 import os
 import sqlite3
+import sys
 from datetime import datetime
 from fastmcp import FastMCP
+import logging
 
 mcp = FastMCP("Local Memory")
 
@@ -9,6 +11,13 @@ DATA_PATH = "/data/memory_db"
 os.makedirs(DATA_PATH, exist_ok=True)
 DB_FILE = os.path.join(DATA_PATH, "memoryV3.db")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("mcp_memory")
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -23,8 +32,30 @@ def init_db():
     conn.commit()
     conn.close()
 
+def print_startup_summary():
+    logger.info("=== MCP Memory Startup Summary ===")
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT pipeline_id, COUNT(*) FROM memories_fts GROUP BY pipeline_id")
+        rows = cursor.fetchall()
+
+        if not rows:
+            logger.info("Database is currently empty. No memories stored yet.")
+        else:
+            total = 0
+            for pid, count in rows:
+                scope = "GLOBAL" if pid == "global" else pid
+                logger.info(f"[{scope}]: {count} memories")
+                total += count
+            logger.info(f"Total memories in database: {total}")
+        conn.close()
+    except Exception as e:
+        logger.error(f"Could not load summary: {e}")
+    logger.info("==================================")
 
 init_db()
+print_startup_summary()
 
 
 @mcp.tool()
@@ -50,6 +81,8 @@ def remember_fact(fact: str, pipeline_id: str, is_global: bool = False) -> str:
     conn.close()
 
     scope = "GLOBALLY" if is_global else f"locally for '{pipeline_id}'"
+    logger.info(f"Memorizing fact {scope} at {current_time}")
+
     return f"Successfully memorized fact {scope} at {current_time}."
 
 
