@@ -85,11 +85,13 @@ def run_app(package_name: str, media_uri: str = "") -> str:
         device.connect(rsa_keys=[signer], auth_timeout_s=5)
 
         if media_uri:
-            # Launch with specific content URI (Deep Link) to bypass profile selection / home screen
+            # Force stop the app first to clear background state / profile prompts, then start with URI
+            logger.info(f"Force stopping {package_name} to ensure clean deep link launch...")
+            device.shell(f"am force-stop {package_name}")
+
             command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
             logger.info(f"Launching app with media URI: {command}")
         else:
-            # Fallback to standard launch intent if no URI is specified
             command = f"am start -n {package_name}/.MainActivity || monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
             logger.info(f"Launching app standard way: {command}")
 
