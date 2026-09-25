@@ -3,9 +3,11 @@
 profile mcp_memory flags=(attach_disconnected,mediate_deleted) {
   #include
 
+  # Capabilities
   file,
   signal (send) set=(kill,term,int,hup,cont),
 
+  # S6-Overlay
   /init ix,
   /bin/** ix,
   /usr/bin/** ix,
@@ -18,11 +20,40 @@ profile mcp_memory flags=(attach_disconnected,mediate_deleted) {
   /run/{,**} rwk,
   /dev/tty rw,
 
+  # Bashio
   /usr/lib/bashio/** ix,
   /tmp/** rwk,
 
-  /data/** rwk,
+  # Access to data dir within your app (main profile)
+  /data/** rw,
+
+  # Zezwolenie na uruchomienie skryptu startowego
   /run.sh ix,
-  /main.py ix,
-  /opt/venv/** mrwix,
+
+  # Start new profile for service (przejście do procesu Pythona)
+  /opt/venv/bin/python* cx -> mcp_service,
+
+  profile mcp_service flags=(attach_disconnected,mediate_deleted) {
+    #include
+
+    # Receive signals from S6-Overlay (dopasowane do nazwy profilu)
+    signal (receive) peer=*_mcp_memory,
+
+    # Access to memory_db and options.json
+    # "k" jest wymagane do blokowania pliku bazy SQLite!
+    /data/** rwk,
+
+    # Access required for service functionality
+    /main.py r,
+    /opt/venv/** rmix,
+    /usr/bin/python* rmix,
+    /bin/bash rix,
+    /bin/sh rix,
+    /bin/echo ix,
+    /etc/passwd r,
+    /dev/tty rw,
+
+    # FastMCP wymaga dostępu do sieci, aby nasłuchiwać portu 8000
+    network,
+  }
 }
