@@ -68,21 +68,31 @@ def check_connection_and_pair() -> str:
         )
 
 
-
 @mcp.tool()
-def run_app(package_name: str) -> str:
+def run_app(package_name: str, media_uri: str = "") -> str:
     """
-    Run an application on the configured Android device using the monkey command.
+    Run an application on the configured Android device.
+    If a media_uri (deep link) is provided, it attempts to launch directly into the specific content.
 
     Args:
         package_name: The package name of the application (e.g., 'com.netflix.ninja')
+        media_uri: Optional deep link or URI to specific content (e.g., Netflix title URL or YouTube video link)
     """
     try:
         device = AdbDeviceTcp(DEVICE_IP, PORT)
         signer = get_adb_signer()
 
         device.connect(rsa_keys=[signer], auth_timeout_s=5)
-        command = f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
+
+        if media_uri:
+            # Launch with specific content URI (Deep Link) to bypass profile selection / home screen
+            command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
+            logger.info(f"Launching app with media URI: {command}")
+        else:
+            # Fallback to standard launch intent if no URI is specified
+            command = f"am start -n {package_name}/.MainActivity || monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
+            logger.info(f"Launching app standard way: {command}")
+
         result = device.shell(command)
         device.close()
 
@@ -90,39 +100,7 @@ def run_app(package_name: str) -> str:
 
     except Exception as e:
         logger.error(f"Error starting app via ADB: {e}")
-        return f"Error starting app via ADB: {e}"
-
-
-@mcp.tool()
-def play_media_content(package_name: str, media_uri: str) -> str:
-    """
-    Run a specific video or media content inside an application on the Android device
-    using Android Intent URI (Deep Linking).
-
-    Args:
-        package_name: The package name of the app (e.g., 'com.google.android.youtube.tv' or 'com.netflix.ninja')
-        media_uri: The deep link URI or web link to the specific video (e.g., 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
-    """
-    try:
-        device = AdbDeviceTcp(DEVICE_IP, PORT)
-        signer = get_adb_signer()
-
-        device.connect(rsa_keys=[signer], auth_timeout_s=5)
-
-        # Construct the am start command with an ACTION_VIEW intent and the specific URI
-        command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
-        logger.info(f"Sending intent command: {command}")
-
-        result = device.shell(command)
-        device.close()
-
-        return f"Successfully triggered media URI '{media_uri}' in {package_name} on {DEVICE_IP}:{PORT}. Output: {result}"
-
-    except Exception as e:
-        logger.error(f"Error starting specific media via ADB: {e}")
-        return f"Error starting specific media via ADB: {e}"
-
-
+        return f"Error starting app via ADB (Check authorization): {e}"
 
 @mcp.tool()
 def get_device_status() -> str:
