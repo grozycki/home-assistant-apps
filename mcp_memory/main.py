@@ -122,6 +122,7 @@ def search_memory(query: str, pipeline_id: str, n_results: int = 3) -> str:
     if not rows:
         return f"No matching memories found for '{pipeline_id}' or globally."
 
+    logger.info(f"Search query '{query}' returned {len(rows)} results.")
     results = [f"ID: {row[0]} | [{'GLOBAL' if row[2] == 'global' else 'LOCAL'}] [{row[3]}] {row[1]}" for row in rows]
     return "\n".join(results)
 
@@ -146,6 +147,7 @@ def list_all_memories(pipeline_id: str) -> str:
     if not rows:
         return f"Database is empty."
 
+    logger.info(f"Listed {len(rows)} memories for '{pipeline_id}'.")
     memories = [
         f"ID: {row[0]} | Scope: {'GLOBAL' if row[2] == 'global' else 'LOCAL'} | Saved: {row[3]} | Fact: {row[1]}" for
         row in rows]
