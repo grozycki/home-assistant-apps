@@ -1,6 +1,6 @@
 name: "MCP Android Debug Bridge"
 description: "Android Debug Bridge (ADB) server for MCP to communicate with Android devices."
-version: "1.0.7"
+version: "1.0.8"
 slug: "mcp_adb"
 init: false
 arch:

@@ -16,13 +16,39 @@ PORT = int(port_env) if port_env and port_env.isdigit() else 5555
 
 mcp = FastMCP("Android Debug Bridge")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+
+class ColoredFormatter(logging.Formatter):
+    """Custom log formatter to add ANSI colors based on log level."""
+
+    # ANSI color codes
+    GREY = "\x1b[38;20m"
+    GREEN = "\x1b[32;20m"
+    YELLOW = "\x1b[33;20m"
+    RED = "\x1b[31;20m"
+    BOLD_RED = "\x1b[31;1m"
+    RESET = "\x1b[0m"
+
+    format_str = "%(asctime)s - %(levelname)s - %(message)s"
+
+    FORMATS = {
+        logging.DEBUG: GREY + format_str + RESET,
+        logging.INFO: GREEN + format_str + RESET,
+        logging.WARNING: YELLOW + format_str + RESET,
+        logging.ERROR: RED + format_str + RESET,
+        logging.CRITICAL: BOLD_RED + format_str + RESET
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS[logging.INFO])
+        formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
+        return formatter.format(record)
+
+
 logger = logging.getLogger("mcp_adb")
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(ColoredFormatter())
 
 
 class ADBPortListener:
@@ -35,11 +61,14 @@ class ADBPortListener:
     def remove_service(self, zeroconf, type, name):
         pass
 
+    def update_service(self, zeroconf, type, name):
+        """Required by newer zeroconf versions to handle service updates."""
+        self.add_service(zeroconf, type, name)
+
     def add_service(self, zeroconf, type, name):
         info = zeroconf.get_service_info(type, name)
         if info:
-            # Check if the service matches our device IP addresses
-            addresses = [inf.decode() if isinstance(inf, bytes) else str(inf) for inf in
+            addresses = [inf.decode('utf-8') if isinstance(inf, bytes) else str(inf) for inf in
                          info.addresses_as_string()]
             if self.target_ip in addresses or any(self.target_ip in str(addr) for addr in info.addresses):
                 self.discovered_port = info.port
@@ -89,6 +118,7 @@ def get_connected_device() -> AdbDeviceTcp:
     device = AdbDeviceTcp(DEVICE_IP, target_port)
     signer = get_adb_signer()
 
+    logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{target_port}...")
     device.connect(rsa_keys=[signer], auth_timeout_s=5)
     return device
 
@@ -100,23 +130,17 @@ def check_connection_and_pair() -> str:
     If the device prompts for authorization, accept it on the physical screen.
     """
     try:
-        device = AdbDeviceTcp(DEVICE_IP, PORT)
-        signer = get_adb_signer()
-
-        logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{PORT}...")
-        # Try to connect with a short timeout
-        device.connect(rsa_keys=[signer], auth_timeout_s=5)
-
+        device = get_connected_device()
         # Run a simple shell command to verify the session is fully authorized
         test_output = device.shell("echo 'Connection active'")
         device.close()
 
-        return f"Successfully connected and authorized with {DEVICE_IP}:{PORT}. Response: {test_output.strip()}"
+        return f"Successfully connected and authorized. Response: {test_output.strip()}"
 
     except Exception as e:
         logger.error(f"Authorization or connection failed: {e}")
         return (
-            f"Failed to connect or authorize with {DEVICE_IP}:{PORT}. Error: {e}. "
+            f"Failed to connect or authorize with {DEVICE_IP}. Error: {e}. "
             "Please check if the device is turned on, network debugging is enabled, "
             "and look at the physical screen of your Android device to accept the RSA key prompt."
         )
@@ -158,7 +182,7 @@ def run_app(package_name: str, media_uri: str = "") -> str:
         result = device.shell(command)
         device.close()
 
-        return f"Successfully launched {package_name} on {DEVICE_IP}:{PORT}. Output: {result}"
+        return f"Successfully launched {package_name} on {DEVICE_IP}. Output: {result}"
 
     except Exception as e:
         logger.error(f"Error starting app via ADB: {e}")
@@ -230,7 +254,7 @@ def list_installed_apps(third_party_only: bool = True) -> str:
         # Clean up output format (remove 'package:' prefix for cleaner reading)
         cleaned_apps = "\n".join([line.replace("package:", "").strip() for line in result.splitlines() if line.strip()])
 
-        return f"Installed Applications on {DEVICE_IP}:{PORT}:\n{cleaned_apps}"
+        return f"Installed Applications on {DEVICE_IP}:\n{cleaned_apps}"
 
     except Exception as e:
         logger.error(f"Error listing installed apps: {e}")
