@@ -6,6 +6,7 @@ from zeroconf import ServiceBrowser, Zeroconf
 import time
 from adbutils import adb, AdbDevice
 import subprocess
+from fastmcp.exceptions import ToolError
 
 MDNS_PAIRING_SERVICE = "_adb-tls-pairing._tcp.local."
 MDNS_CONNECT_SERVICE = "_adb-tls-connect._tcp.local."
@@ -94,30 +95,15 @@ def discover_pairing_port(device_ip: str, timeout: int = 10) -> int:
 
     raise RuntimeError(f"mDNS: Could not discover port for {device_ip} within {timeout} seconds.")
 
-def pair_device(device_ip: str, pairing_port: int, pairing_code: str) -> bool:
-    target = f"{device_ip}:{pairing_port}"
-    print(f"Parowanie z {target} przy użyciu kodu {pairing_code}...")
 
-    res = subprocess.run(
-        ["adb", "pair", target, str(pairing_code)],
-        capture_output=True,
-        text=True,
-        timeout=10
-    )
 
-    output = res.stdout.strip() or res.stderr.strip()
-    logger.info(f"Wynik parowania ADB: {output}")
-
-    print(f"Wynik parowania: {res}")
-
-    return True
 
 
 def get_connected_device() -> AdbDevice:
     port = discover_connect_port(DEVICE_IP)
     logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{port}...")
     target = f"{DEVICE_IP}:{port}"
-    adb.connect(target)
+    adb.connect(addr=target, timeout=10)
 
     return adb.device(target)
 
@@ -182,7 +168,8 @@ def run_app(package_name: str, media_uri: str = "") -> str:
 
     except Exception as e:
         logger.error(f"Error starting app via ADB: {e}")
-        return f"Error starting app via ADB (Check authorization): {e}"
+
+        raise ToolError(f"Error starting app via ADB: {e}")
 
 
 @mcp.tool()
@@ -223,7 +210,8 @@ def get_device_status() -> str:
 
     except Exception as e:
         logger.error(f"Error fetching device status: {e}")
-        return f"Error fetching device status (Check authorization): {e}"
+
+        raise ToolError(f"{e}")
 
 
 @mcp.tool()
@@ -251,7 +239,34 @@ def list_installed_apps(third_party_only: bool = True) -> str:
 
     except Exception as e:
         logger.error(f"Error listing installed apps: {e}")
-        return f"Error listing installed apps (Check authorization): {e}"
+
+        raise ToolError(f"{e}")
+
+@mcp.tool()
+def pair_device(pairing_code: str) -> bool:
+    """
+    Pair the Android device with the ADB server using the provided pairing code.
+
+    Args:
+        pairing_code: The pairing code for the device.
+
+    Returns:
+        True if pairing is successful, False otherwise.
+    """
+    pairing_port = discover_pairing_port(device_ip=DEVICE_IP)
+    target = f"{DEVICE_IP}:{pairing_port}"
+    logger.warning(f"Attempting to pair with {target} using code {pairing_code}...")
+    res = subprocess.run(
+        ["adb", "pair", target, str(pairing_code)],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+
+    if res.returncode != 0:
+        raise ToolError(f"Failed to pair with {target}: {res.stderr.strip()}")
+
+    return True
 
 
 if __name__ == "__main__":
