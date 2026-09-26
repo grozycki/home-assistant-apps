@@ -122,7 +122,7 @@ def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
         logger.error(f"Failed to get device for {target}: {e}")
 
         if ("Can't find any android device/emulator" in str(e)
-                or f"device '{target}' not found" in str(e)):
+                or "not found" in str(e)):
             raise UnpairedDevice(
                 f"Device {device_ip} is not paired. Please pair the device first using the pairing code.")
 
