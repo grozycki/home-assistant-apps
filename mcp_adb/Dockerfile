@@ -4,7 +4,8 @@ FROM $BUILD_FROM
 RUN \
   apk add --no-cache \
     python3 \
-    py3-uv
+    py3-uv \
+    android-tools
 
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
