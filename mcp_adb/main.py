@@ -94,14 +94,17 @@ def discover_pairing_port(device_ip: str, timeout: int = 15) -> int:
         logger.info(f"mDNS: Successfully discovered ADB port {listener.discovered_port} for {device_ip}.")
         return listener.discovered_port
 
-    raise DeviceNotInPairingMode(f"Device {device_ip} is not in pairing mode. Please ensure the device is ready for pairing.")
+    raise DeviceNotInPairingMode(
+        f"Device {device_ip} is not in pairing mode. Please ensure the device is ready for pairing.")
 
 
 class UnpairedDevice(Exception):
     pass
 
+
 class DeviceNotInPairingMode(Exception):
     pass
+
 
 def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
     port = discover_connect_port(device_ip=device_ip)
@@ -128,47 +131,53 @@ def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
 
         raise RuntimeError(f"Failed to get device for {target}: {e}")
 
+
 @mcp.tool()
-def run_app(package_name: str, media_uri: str = "") -> str:
+def run_app(package_name: str, media_uri: str = "") -> dict:
     """
     Run an application on the configured Android device.
     If a media_uri (deep link) is provided, it attempts to launch directly into the specific content.
 
     Args:
-        package_name: The package name of the application (e.g., 'com.netflix.ninja')
-        media_uri: Optional deep link or URI to specific content (e.g., Netflix title URL or YouTube video link)
+        package_name: The package name of the application (e.g., 'com.disney.disneyplus')
+        media_uri: Optional deep link or URI to specific content
     """
     try:
         device = get_connected_device()
 
         if media_uri:
-            # Force stop the app first to clear background state
             logger.info(f"Force stopping {package_name} to ensure clean launch...")
             device.shell(f"am force-stop {package_name}")
 
-            # Convert web URL to Netflix internal URI scheme if applicable,
-            # or pass the explicit intent with component structure
             if "netflix.com/title/" in media_uri:
                 title_id = media_uri.split("/title/")[-1].split("/")[0]
-                # Netflix internal URI scheme for Android TV
                 nflx_uri = f"nflx://www.netflix.com/title/{title_id}"
                 command = f"am start -a android.intent.action.VIEW -d '{nflx_uri}' {package_name}"
             else:
                 command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
-
             logger.info(f"Launching app with deep link: {command}")
         else:
-            command = f"am start -n {package_name}/.MainActivity || monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
-            logger.info(f"Launching app standard way: {command}")
+            command = (
+                f"monkey -p {package_name} -c android.intent.category.LEANBACK_LAUNCHER 1 || "
+                f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
+            )
+            logger.info(f"Launching app via package category: {command}")
 
         result = device.shell(command)
 
-        return f"Successfully launched {package_name} on {DEVICE_IP}. Output: {result}"
+        if "Error type" in result or "Error:" in result:
+            raise ToolError(f"ADB launch error: {result.strip()}")
+
+        return {
+            "device_ip": DEVICE_IP,
+            "package_name": package_name,
+            "status": "launched",
+            "output": result.strip()
+        }
 
     except Exception as e:
         logger.error(f"Error starting app via ADB: {e}")
-
-        raise ToolError(f"Error starting app via ADB: {e}")
+        raise ToolError(f"Failed to launch {package_name}: {e}")
 
 
 @mcp.tool()
