@@ -5,6 +5,8 @@ from fastmcp import FastMCP
 from adb_shell.adb_device import AdbDeviceTcp
 from adb_shell.auth.keygen import keygen
 from adb_shell.auth.sign_pythonrsa import PythonRSASigner
+from zeroconf import ServiceBrowser, Zeroconf
+import time
 
 # Read configuration from environment variables with fallback defaults
 DEVICE_IP = os.getenv("DEVICE_IP", "127.0.0.1")
@@ -23,6 +25,48 @@ logging.basicConfig(
 logger = logging.getLogger("mcp_adb")
 
 
+class ADBPortListener:
+    """Listener to capture the dynamic ADB port via mDNS."""
+
+    def __init__(self, target_ip: str):
+        self.target_ip = target_ip
+        self.discovered_port = None
+
+    def remove_service(self, zeroconf, type, name):
+        pass
+
+    def add_service(self, zeroconf, type, name):
+        info = zeroconf.get_service_info(type, name)
+        if info:
+            # Check if the service matches our device IP addresses
+            addresses = [inf.decode() if isinstance(inf, bytes) else str(inf) for inf in
+                         info.addresses_as_string()]
+            if self.target_ip in addresses or any(self.target_ip in str(addr) for addr in info.addresses):
+                self.discovered_port = info.port
+                logger.info(f"Discovered dynamic ADB port {info.port} for IP {self.target_ip}")
+
+
+def discover_adb_port(target_ip: str, timeout: int = 3) -> int:
+    """Scan local network using mDNS to find the dynamic wireless debugging port."""
+    zeroconf = Zeroconf()
+    listener = ADBPortListener(target_ip)
+    browser = ServiceBrowser(zeroconf, "_adb-tls-connect._tcp.local.", listener)
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if listener.discovered_port:
+            break
+        time.sleep(0.2)
+
+    zeroconf.close()
+
+    if listener.discovered_port:
+        return listener.discovered_port
+
+    logger.warning(f"Could not discover port via mDNS for {target_ip}, falling back to default {PORT}.")
+    return PORT
+
+
 def get_adb_signer(key_path: str = "/data/adbkey") -> PythonRSASigner:
     """Get or generate RSA keys required for ADB authorization."""
     os.makedirs(os.path.dirname(key_path), exist_ok=True)
@@ -31,12 +75,22 @@ def get_adb_signer(key_path: str = "/data/adbkey") -> PythonRSASigner:
         logger.info("Generating new RSA keys for ADB...")
         keygen(key_path)
 
-    with open(key_path, 'r') as f:
+    with open(key_path) as f:
         priv = f.read()
-    with open(key_path + '.pub', 'r') as f:
+    with open(key_path + '.pub') as f:
         pub = f.read()
 
     return PythonRSASigner(pub, priv)
+
+
+def get_connected_device() -> AdbDeviceTcp:
+    target_port = discover_adb_port(DEVICE_IP)
+
+    device = AdbDeviceTcp(DEVICE_IP, target_port)
+    signer = get_adb_signer()
+
+    device.connect(rsa_keys=[signer], auth_timeout_s=5)
+    return device
 
 
 @mcp.tool()
@@ -79,10 +133,7 @@ def run_app(package_name: str, media_uri: str = "") -> str:
         media_uri: Optional deep link or URI to specific content (e.g., Netflix title URL or YouTube video link)
     """
     try:
-        device = AdbDeviceTcp(DEVICE_IP, PORT)
-        signer = get_adb_signer()
-
-        device.connect(rsa_keys=[signer], auth_timeout_s=5)
+        device = get_connected_device()
 
         if media_uri:
             # Force stop the app first to clear background state
@@ -113,6 +164,7 @@ def run_app(package_name: str, media_uri: str = "") -> str:
         logger.error(f"Error starting app via ADB: {e}")
         return f"Error starting app via ADB (Check authorization): {e}"
 
+
 @mcp.tool()
 def get_device_status() -> str:
     """
@@ -120,10 +172,7 @@ def get_device_status() -> str:
     active foreground application, window focus, media session details (title, progress), and volume level.
     """
     try:
-        device = AdbDeviceTcp(DEVICE_IP, PORT)
-        signer = get_adb_signer()
-
-        device.connect(rsa_keys=[signer], auth_timeout_s=5)
+        device = get_connected_device()
 
         # 1. Fetch power and screen wakefulness state
         power_output = device.shell("dumpsys power | grep 'mWakefulness='")
@@ -168,10 +217,7 @@ def list_installed_apps(third_party_only: bool = True) -> str:
         third_party_only: If True, lists only user-installed apps. If False, lists all packages.
     """
     try:
-        device = AdbDeviceTcp(DEVICE_IP, PORT)
-        signer = get_adb_signer()
-
-        device.connect(rsa_keys=[signer], auth_timeout_s=5)
+        device = get_connected_device()
 
         # -3 flag filters out system apps and shows only third-party (user) installed apps
         flag = "-3" if third_party_only else ""
