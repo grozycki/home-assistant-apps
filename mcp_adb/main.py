@@ -52,7 +52,7 @@ handler.setFormatter(ColoredFormatter())
 
 
 class ADBPortListener:
-    """Listener to capture the dynamic ADB port via mDNS."""
+    """Listener capturing dynamic ADB port via mDNS."""
 
     def __init__(self, target_ip: str):
         self.target_ip = target_ip
@@ -62,33 +62,32 @@ class ADBPortListener:
         pass
 
     def update_service(self, zeroconf, type, name):
-        """Required by newer zeroconf versions to handle service updates."""
+        """Mandatory for newer zeroconf versions."""
         self.add_service(zeroconf, type, name)
 
     def add_service(self, zeroconf, type, name):
         info = zeroconf.get_service_info(type, name)
         if info:
-            addresses = [inf.decode('utf-8') if isinstance(inf, bytes) else str(inf) for inf in
-                         info.addresses_as_string()]
-            if self.target_ip in addresses or any(self.target_ip in str(addr) for addr in info.addresses):
+            parsed_ips = info.parsed_addresses()
+
+            if self.target_ip in parsed_ips:
                 self.discovered_port = info.port
-                logger.info(f"Discovered dynamic ADB port {info.port} for IP {self.target_ip}")
+                logger.info(f"mDNS: Discovered ADB port {info.port} for IP {self.target_ip} (Service: {name})")
 
 
-def discover_adb_port(target_ip: str, timeout: int = 5, fallback_port: int = 5555) -> int:
+def discover_adb_port(target_ip: str, timeout: int = 4, fallback_port: int = 5555) -> int:
     """
     Scan local network using mDNS to find the dynamic wireless debugging port.
     """
     zeroconf = Zeroconf()
     listener = ADBPortListener(target_ip)
 
-    # We listen for both standard ADB connection and pairing services
     service_types = [
         "_adb-tls-connect._tcp.local.",
         "_adb._tcp.local."
     ]
 
-    logger.info(f"mDNS: Browsing network for ADB service on {target_ip}...")
+    logger.info(f"mDNS: Browsing for ADB dynamic port on {target_ip}...")
     browser = ServiceBrowser(zeroconf, service_types, listener)
 
     start_time = time.time()
@@ -97,13 +96,12 @@ def discover_adb_port(target_ip: str, timeout: int = 5, fallback_port: int = 555
             break
         time.sleep(0.1)
 
-    # Clean up zeroconf browser
     zeroconf.close()
 
     if listener.discovered_port:
         return listener.discovered_port
 
-    logger.warning(f"Could not discover port via mDNS for {target_ip}, falling back to default {fallback_port}.")
+    logger.warning(f"mDNS: Could not discover port for {target_ip}, falling back to {fallback_port}.")
     return fallback_port
 
 
