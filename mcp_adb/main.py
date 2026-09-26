@@ -1,14 +1,17 @@
 import os
 import sys
 import logging
+import cite
 from fastmcp import FastMCP
 from zeroconf import ServiceBrowser, Zeroconf
 import time
 from adbutils import adb, AdbDevice
 from adbutils.errors import AdbError
 import subprocess
-from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
+import re
+import xml.etree.ElementTree as ET
+from fastmcp.exceptions import ToolError
 
 MDNS_PAIRING_SERVICE = "_adb-tls-pairing._tcp.local."
 MDNS_CONNECT_SERVICE = "_adb-tls-connect._tcp.local."
@@ -300,6 +303,102 @@ def pair_device(pairing_code: str, device_ip: str = DEVICE_IP) -> bool:
     logger.info(f"Successfully paired with {target}. Output: {res.stdout.strip()}")
 
     return True
+
+
+@mcp.tool()
+def get_current_app() -> ToolResult:
+    """
+    Retrieves the package name and active class of the currently focused/foreground application on the Android device.
+    """
+    try:
+        device = get_connected_device()
+
+        output = device.shell("dumpsys activity activities | grep mResumedActivity")[cite: 2]
+
+        if not output or not output.strip():
+            output = device.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")[cite: 2]
+
+        match = re.search(r'([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)/([a-zA-Z0-9_$.]+)', output)
+
+        if match:
+            package_name = match.group(1)
+            activity_name = match.group(2)
+        else:
+            package_name = "unknown"
+            activity_name = "unknown"
+
+        return ToolResult(
+            content=f"Current app on {DEVICE_IP}: {package_name}/{activity_name}",
+            structured_content={
+                "device_ip": DEVICE_IP,
+                "package_name": package_name,
+                "activity": activity_name,
+                "is_home_screen": "launcher" in package_name.lower(),
+                "raw_output": output.strip()
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting current app: {e}")
+        raise ToolError(f"Failed to get current app on {DEVICE_IP}: {e}")
+
+def parse_ui_hierarchy(xml_string: str) -> list[dict]:
+    """Parsuje plik XML z uiautomator i wyciąga tylko widoczne elementy tekstowe oraz interaktywne."""
+    elements = []
+    try:
+        root = ET.fromstring(xml_string)
+        for node in root.iter("node"):
+            text = node.attrib.get("text", "").strip()
+            content_desc = node.attrib.get("content-desc", "").strip()
+            resource_id = node.attrib.get("resource-id", "").strip()
+            clickable = node.attrib.get("clickable", "false") == "true"
+            bounds = node.attrib.get("bounds", "")
+
+            # Interesują nas tylko elementy posiadające tekst lub opis dostępności (accessibility label)
+            if text or content_desc:
+                elements.append({
+                    "text": text,
+                    "content_description": content_desc,
+                    "resource_id": resource_id,
+                    "clickable": clickable,
+                    "bounds": bounds
+                })
+    except Exception as e:
+        logger.warning(f"Błąd parsowania XML UI: {e}")
+
+    return elements
+
+
+@mcp.tool()
+def get_screen_content() -> ToolResult:
+    """
+    Retrieves all visible text elements, buttons, content descriptions, and labels currently displayed on the device screen.
+    Useful to know what the user or app is currently showing on screen.
+    """
+    try:
+        device = get_connected_device()
+
+        tmp_file = "/data/local/tmp/window_dump.xml"
+        device.shell(f"uiautomator dump {tmp_file}")
+        xml_data = device.shell(f"cat {tmp_file}")
+        device.shell(f"rm -f {tmp_file}")
+
+        visible_elements = parse_ui_hierarchy(xml_data)
+        focused_window = device.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'").strip()
+
+        return ToolResult(
+            content=f"Screen content on {DEVICE_IP}: {len(visible_elements)} elements found",
+            structured_content={
+                "device_ip": DEVICE_IP,
+                "focused_window": focused_window,
+                "element_count": len(visible_elements),
+                "visible_elements": visible_elements
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error fetching screen content: {e}")
+        raise ToolError(f"Failed to fetch screen content on {DEVICE_IP}: {e}")
 
 
 if __name__ == "__main__":
