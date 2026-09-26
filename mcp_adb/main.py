@@ -115,9 +115,9 @@ def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
         raise RuntimeError(f"Failed to connect to {target}: {e}")
 
     logger.info(f"Connection result: {result}.")
-
+    logger.debug(f"Device list: {adb.device_list()}")
     try:
-        return adb.device(serial=target)
+        return adb.device()
     except AdbError as e:
         logger.error(f"Failed to get device for {target}: {e}")
 
