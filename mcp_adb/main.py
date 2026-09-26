@@ -75,25 +75,36 @@ class ADBPortListener:
                 logger.info(f"Discovered dynamic ADB port {info.port} for IP {self.target_ip}")
 
 
-def discover_adb_port(target_ip: str, timeout: int = 3) -> int:
-    """Scan local network using mDNS to find the dynamic wireless debugging port."""
+def discover_adb_port(target_ip: str, timeout: int = 5, fallback_port: int = 5555) -> int:
+    """
+    Scan local network using mDNS to find the dynamic wireless debugging port.
+    """
     zeroconf = Zeroconf()
     listener = ADBPortListener(target_ip)
-    browser = ServiceBrowser(zeroconf, "_adb-tls-connect._tcp.local.", listener)
+
+    # We listen for both standard ADB connection and pairing services
+    service_types = [
+        "_adb-tls-connect._tcp.local.",
+        "_adb._tcp.local."
+    ]
+
+    logger.info(f"mDNS: Browsing network for ADB service on {target_ip}...")
+    browser = ServiceBrowser(zeroconf, service_types, listener)
 
     start_time = time.time()
     while time.time() - start_time < timeout:
         if listener.discovered_port:
             break
-        time.sleep(0.2)
+        time.sleep(0.1)
 
+    # Clean up zeroconf browser
     zeroconf.close()
 
     if listener.discovered_port:
         return listener.discovered_port
 
-    logger.warning(f"Could not discover port via mDNS for {target_ip}, falling back to default {PORT}.")
-    return PORT
+    logger.warning(f"Could not discover port via mDNS for {target_ip}, falling back to default {fallback_port}.")
+    return fallback_port
 
 
 def get_adb_signer(key_path: str = "/data/adbkey") -> PythonRSASigner:
