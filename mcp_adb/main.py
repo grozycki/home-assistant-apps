@@ -121,9 +121,12 @@ def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
     except AdbError as e:
         logger.error(f"Failed to get device for {target}: {e}")
 
-        if "Can't find any android device/emulator" in str(e):
+        if ("Can't find any android device/emulator" in str(e)
+                or f"device '{target}' not found" in str(e)):
             raise UnpairedDevice(
                 f"Device {device_ip} is not paired. Please pair the device first using the pairing code.")
+
+        raise RuntimeError(f"Failed to get device for {target}: {e}")
 
 @mcp.tool()
 def run_app(package_name: str, media_uri: str = "") -> str:
@@ -217,6 +220,11 @@ def list_installed_apps(device_ip: str = DEVICE_IP) -> dict:
     """
     try:
         device = get_connected_device(device_ip=device_ip)
+    except Exception as e:
+        logger.error(f"Error connecting to device {device_ip}: {e}")
+        raise ToolError(f"Error connecting to device {device_ip}: {e}")
+
+    try:
         # -3 flag filters out system apps and shows only third-party (user) installed apps
         command = f"pm list packages -3"
 
