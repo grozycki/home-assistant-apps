@@ -5,6 +5,7 @@ from fastmcp import FastMCP
 from zeroconf import ServiceBrowser, Zeroconf
 import time
 from adbutils import adb, AdbDevice
+from adbutils.errors import AdbError
 import subprocess
 from fastmcp.exceptions import ToolError
 
@@ -51,7 +52,7 @@ class ADBPortListener:
                 logger.info(f"mDNS: Discovered ADB port {info.port} for IP {self.target_ip} (Service: {name})")
 
 
-def discover_connect_port(device_ip: str, timeout: int = 10, fallback_port: int = PORT) -> int:
+def discover_connect_port(device_ip: str, timeout: int = 15, fallback_port: int = PORT) -> int:
     zeroconf = Zeroconf()
     listener = ADBPortListener(device_ip)
 
@@ -74,7 +75,7 @@ def discover_connect_port(device_ip: str, timeout: int = 10, fallback_port: int 
     return fallback_port
 
 
-def discover_pairing_port(device_ip: str, timeout: int = 10) -> int:
+def discover_pairing_port(device_ip: str, timeout: int = 15) -> int:
     zeroconf = Zeroconf()
     listener = ADBPortListener(device_ip)
 
@@ -93,38 +94,36 @@ def discover_pairing_port(device_ip: str, timeout: int = 10) -> int:
         logger.info(f"mDNS: Successfully discovered ADB port {listener.discovered_port} for {device_ip}.")
         return listener.discovered_port
 
-    raise RuntimeError(f"mDNS: Could not discover port for {device_ip} within {timeout} seconds.")
+    raise DeviceNotInPairingMode(f"Device {device_ip} is not in pairing mode. Please ensure the device is ready for pairing.")
 
 
-def get_connected_device() -> AdbDevice:
-    port = discover_connect_port(DEVICE_IP)
-    logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{port}...")
-    target = f"{DEVICE_IP}:{port}"
-    adb.connect(addr=target, timeout=10)
+class UnpairedDevice(Exception):
+    pass
 
-    return adb.device(target)
+class DeviceNotInPairingMode(Exception):
+    pass
 
+def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
+    port = discover_connect_port(device_ip=device_ip)
+    logger.info(f"Attempting to connect to {device_ip}:{port}...")
+    target = f"{device_ip}:{port}"
 
-def check_connection_and_pair() -> str:
-    """
-    Test the connection to the Android device and verify RSA key authorization.
-    If the device prompts for authorization, accept it on the physical screen.
-    """
     try:
-        device = get_connected_device()
-        # Run a simple shell command to verify the session is fully authorized
-        test_output = device.shell("echo 'Connection active'")
+        result = adb.connect(addr=target, timeout=10)
+    except TimeoutError as e:
+        logger.error(f"Failed to connect to {target}: {e}")
+        raise RuntimeError(f"Failed to connect to {target}: {e}")
 
-        return f"Successfully connected and authorized. Response: {test_output.strip()}"
+    logger.info(f"Connection result: {result}.")
 
-    except Exception as e:
-        logger.error(f"Authorization or connection failed: {e}")
-        return (
-            f"Failed to connect or authorize with {DEVICE_IP}. Error: {e}. "
-            "Please check if the device is turned on, network debugging is enabled, "
-            "and look at the physical screen of your Android device to accept the RSA key prompt."
-        )
+    try:
+        return adb.device(serial=target)
+    except AdbError as e:
+        logger.error(f"Failed to get device for {target}: {e}")
 
+        if "Can't find any android device/emulator" in str(e):
+            raise UnpairedDevice(
+                f"Device {device_ip} is not paired. Please pair the device first using the pairing code.")
 
 @mcp.tool()
 def run_app(package_name: str, media_uri: str = "") -> str:
@@ -212,12 +211,12 @@ def get_device_status() -> str:
 
 
 @mcp.tool()
-def list_installed_apps() -> dict:
+def list_installed_apps(device_ip: str = DEVICE_IP) -> dict:
     """
     Retrieve a list of installed applications on the Android device.
     """
     try:
-        device = get_connected_device()
+        device = get_connected_device(device_ip=device_ip)
         # -3 flag filters out system apps and shows only third-party (user) installed apps
         command = f"pm list packages -3"
 
@@ -242,18 +241,19 @@ def list_installed_apps() -> dict:
 
 
 @mcp.tool()
-def pair_device(pairing_code: str) -> bool:
+def pair_device(pairing_code: str, device_ip: str = DEVICE_IP) -> bool:
     """
     Pair the Android device with the ADB server using the provided pairing code.
 
     Args:
         pairing_code: The pairing code for the device.
+        device_ip: The IP address of the device to pair.
 
     Returns:
         True if pairing is successful, False otherwise.
     """
-    pairing_port = discover_pairing_port(device_ip=DEVICE_IP)
-    target = f"{DEVICE_IP}:{pairing_port}"
+    pairing_port = discover_pairing_port(device_ip=device_ip)
+    target = f"{device_ip}:{pairing_port}"
     logger.warning(f"Attempting to pair with {target} using code {pairing_code}...")
     res = subprocess.run(
         ["adb", "pair", target, str(pairing_code)],
@@ -264,6 +264,8 @@ def pair_device(pairing_code: str) -> bool:
 
     if res.returncode != 0:
         raise ToolError(f"Failed to pair with {target}: {res.stderr.strip()}")
+
+    logger.info(f"Successfully paired with {target}. Output: {res.stdout.strip()}")
 
     return True
 
