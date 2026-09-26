@@ -8,6 +8,7 @@ from adbutils import adb, AdbDevice
 from adbutils.errors import AdbError
 import subprocess
 from fastmcp.exceptions import ToolError
+from fastmcp.tools import ToolResult
 
 MDNS_PAIRING_SERVICE = "_adb-tls-pairing._tcp.local."
 MDNS_CONNECT_SERVICE = "_adb-tls-connect._tcp.local."
@@ -133,7 +134,7 @@ def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
 
 
 @mcp.tool()
-def run_app(package_name: str, media_uri: str = "") -> dict:
+def run_app(package_name: str, media_uri: str = "") -> ToolResult:
     """
     Run an application on the configured Android device.
     If a media_uri (deep link) is provided, it attempts to launch directly into the specific content.
@@ -168,12 +169,14 @@ def run_app(package_name: str, media_uri: str = "") -> dict:
         if "Error type" in result or "Error:" in result:
             raise ToolError(f"ADB launch error: {result.strip()}")
 
-        return {
-            "device_ip": DEVICE_IP,
-            "package_name": package_name,
-            "status": "launched",
-            "output": result.strip()
-        }
+        return ToolResult(
+            content=f"Successfully launched {package_name} on device {DEVICE_IP}.",
+            structured_content={
+                "device_ip": DEVICE_IP,
+                "package_name": package_name,
+                "status": "launched",
+                "output": result.strip()
+            })
 
     except Exception as e:
         logger.error(f"Error starting app via ADB: {e}")
@@ -181,7 +184,7 @@ def run_app(package_name: str, media_uri: str = "") -> dict:
 
 
 @mcp.tool()
-def get_device_status() -> str:
+def get_device_status() -> ToolResult:
     """
     Retrieve comprehensive status of the configured Android device, including power state,
     active foreground application, window focus, media session details (title, progress), and volume level.
@@ -208,12 +211,15 @@ def get_device_status() -> str:
         media_trimmed = media_output[:1500] if len(media_output) > 1500 else media_output
         audio_trimmed = audio_output[:1000] if len(audio_output) > 1000 else audio_output
 
-        return (
-            f"=== POWER STATE ===\n{power_output.strip()}\n\n"
-            f"=== FOREGROUND APP ===\n{app_output.strip()}\n\n"
-            f"=== WINDOW FOCUS ===\n{window_output.strip()}\n\n"
-            f"=== AUDIO / VOLUME ===\n{audio_trimmed.strip()}\n\n"
-            f"=== MEDIA SESSIONS ===\n{media_trimmed.strip()}"
+        return ToolResult(
+            content="Device status retrieved successfully.",
+            structured_content={
+                "power_state": power_output.strip(),
+                "foreground_app": app_output.strip(),
+                "window_focus": window_output.strip(),
+                "media_sessions": media_trimmed.strip(),
+                "audio_volume": audio_trimmed.strip()
+            }
         )
 
     except Exception as e:
@@ -223,7 +229,7 @@ def get_device_status() -> str:
 
 
 @mcp.tool()
-def list_installed_apps(device_ip: str = DEVICE_IP) -> dict:
+def list_installed_apps(device_ip: str = DEVICE_IP) -> ToolResult:
     """
     Retrieve a list of installed applications on the Android device.
     """
@@ -246,10 +252,15 @@ def list_installed_apps(device_ip: str = DEVICE_IP) -> dict:
             if line.strip()
         ]
 
-        return {
-            "count": len(cleaned_apps),
-            "apps": cleaned_apps,
-        }
+        count = len(cleaned_apps)
+
+        return ToolResult(
+            content=f"Found {count} apps installed on device {device_ip}.",
+            structured_content={
+                "count": count,
+                "apps": cleaned_apps
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error listing installed apps: {e}")
