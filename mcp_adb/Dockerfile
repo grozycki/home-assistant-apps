@@ -1,6 +1,10 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/base:latest
 FROM $BUILD_FROM
 
+ENV PYTHONUNBUFFERED=1
+ENV HOME=/data
+ENV ADB_VENDOR_KEYS=/data/.android/adbkey
+
 RUN \
   apk add --no-cache \
     python3 \
