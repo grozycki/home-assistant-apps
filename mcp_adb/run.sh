@@ -13,7 +13,7 @@ export PORT=$(bashio::config 'port')
 export HOME=/data
 export ADB_VENDOR_KEYS=/data/.android
 
-adb kill-server || true
+#adb kill-server || true
 
 bashio::log.info "Starting MCP ADB app..."
 
