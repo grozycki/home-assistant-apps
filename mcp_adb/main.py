@@ -96,9 +96,6 @@ def discover_pairing_port(device_ip: str, timeout: int = 10) -> int:
     raise RuntimeError(f"mDNS: Could not discover port for {device_ip} within {timeout} seconds.")
 
 
-
-
-
 def get_connected_device() -> AdbDevice:
     port = discover_connect_port(DEVICE_IP)
     logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{port}...")
@@ -215,32 +212,34 @@ def get_device_status() -> str:
 
 
 @mcp.tool()
-def list_installed_apps(third_party_only: bool = True) -> str:
+def list_installed_apps() -> dict:
     """
     Retrieve a list of installed applications on the Android device.
-
-    Args:
-        third_party_only: If True, lists only user-installed apps. If False, lists all packages.
     """
     try:
         device = get_connected_device()
-
         # -3 flag filters out system apps and shows only third-party (user) installed apps
-        flag = "-3" if third_party_only else ""
-        command = f"pm list packages {flag}"
+        command = f"pm list packages -3"
 
         logger.info(f"Fetching installed apps with command: {command}")
         result = device.shell(command)
 
-        # Clean up output format (remove 'package:' prefix for cleaner reading)
-        cleaned_apps = "\n".join([line.replace("package:", "").strip() for line in result.splitlines() if line.strip()])
+        cleaned_apps = [
+            line.replace("package:", "").strip()
+            for line in result.splitlines()
+            if line.strip()
+        ]
 
-        return f"Installed Applications on {DEVICE_IP}:\n{cleaned_apps}"
+        return {
+            "count": len(cleaned_apps),
+            "apps": cleaned_apps,
+        }
 
     except Exception as e:
         logger.error(f"Error listing installed apps: {e}")
 
         raise ToolError(f"{e}")
+
 
 @mcp.tool()
 def pair_device(pairing_code: str) -> bool:
