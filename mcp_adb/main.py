@@ -76,19 +76,12 @@ class ADBPortListener:
 
 
 def discover_adb_port(target_ip: str, timeout: int = 4, fallback_port: int = 5555) -> int:
-    """
-    Scan local network using mDNS to find the dynamic wireless debugging port.
-    """
     zeroconf = Zeroconf()
     listener = ADBPortListener(target_ip)
+    service_type = "_adb-tls-connect._tcp.local."
 
-    service_types = [
-        "_adb-tls-connect._tcp.local.",
-        "_adb._tcp.local."
-    ]
-
-    logger.info(f"mDNS: Browsing for ADB dynamic port on {target_ip}...")
-    browser = ServiceBrowser(zeroconf, service_types, listener)
+    logger.info(f"mDNS: Browsing for ADB connect port on {target_ip}...")
+    browser = ServiceBrowser(zeroconf, service_type, listener)
 
     start_time = time.time()
     while time.time() - start_time < timeout:
