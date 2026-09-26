@@ -14,11 +14,9 @@ MDNS_PAIRING_SERVICE = "_adb-tls-pairing._tcp.local."
 MDNS_CONNECT_SERVICE = "_adb-tls-connect._tcp.local."
 MDNS_ADB_SERVICE = "_adb._tcp.local."
 
-os.environ["HOME"] = "/data"
-os.environ["ADB_VENDOR_KEYS"] = "/data/.android/adbkey"
-
-os.makedirs("/data/.android", exist_ok=True)
-
+# os.environ["HOME"] = "/data"
+# os.environ["ADB_VENDOR_KEYS"] = "/data/.android/adbkey"
+# os.makedirs("/data/.android", exist_ok=True)
 
 # Read configuration from environment variables with fallback defaults
 DEVICE_IP = os.getenv("DEVICE_IP", "127.0.0.1")
