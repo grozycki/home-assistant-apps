@@ -1,7 +1,6 @@
 import os
 import sys
 import logging
-import cite
 from fastmcp import FastMCP
 from zeroconf import ServiceBrowser, Zeroconf
 import time
@@ -313,10 +312,10 @@ def get_current_app() -> ToolResult:
     try:
         device = get_connected_device()
 
-        output = device.shell("dumpsys activity activities | grep mResumedActivity")[cite: 2]
+        output = device.shell("dumpsys activity activities | grep mResumedActivity")
 
         if not output or not output.strip():
-            output = device.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")[cite: 2]
+            output = device.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
 
         match = re.search(r'([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)/([a-zA-Z0-9_$.]+)', output)
 
@@ -402,6 +401,4 @@ def get_screen_content() -> ToolResult:
 
 
 if __name__ == "__main__":
-    import sys
-    sys.argv = ["main.py"]
     mcp.run(transport="sse", host="0.0.0.0", port=8555)
