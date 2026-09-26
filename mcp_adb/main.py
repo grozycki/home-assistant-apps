@@ -2,11 +2,14 @@ import os
 import sys
 import logging
 from fastmcp import FastMCP
-from adb_shell.adb_device import AdbDeviceTcp
-from adb_shell.auth.keygen import keygen
-from adb_shell.auth.sign_pythonrsa import PythonRSASigner
 from zeroconf import ServiceBrowser, Zeroconf
 import time
+from adbutils import adb, AdbDevice
+import subprocess
+
+MDNS_PAIRING_SERVICE = "_adb-tls-pairing._tcp.local."
+MDNS_CONNECT_SERVICE = "_adb-tls-connect._tcp.local."
+MDNS_ADB_SERVICE = "_adb._tcp.local."
 
 # Read configuration from environment variables with fallback defaults
 DEVICE_IP = os.getenv("DEVICE_IP", "127.0.0.1")
@@ -47,13 +50,12 @@ class ADBPortListener:
                 logger.info(f"mDNS: Discovered ADB port {info.port} for IP {self.target_ip} (Service: {name})")
 
 
-def discover_adb_port(device_ip: str, timeout: int = 10, fallback_port: int = PORT) -> int:
+def discover_connect_port(device_ip: str, timeout: int = 10, fallback_port: int = PORT) -> int:
     zeroconf = Zeroconf()
     listener = ADBPortListener(device_ip)
-    service_type = "_adb-tls-connect._tcp.local."
 
     logger.info(f"mDNS: Browsing for ADB connect port on {device_ip}...")
-    browser = ServiceBrowser(zeroconf, service_type, listener)
+    browser = ServiceBrowser(zc=zeroconf, type_=MDNS_CONNECT_SERVICE, listener=listener)
 
     start_time = time.time()
     while time.time() - start_time < timeout:
@@ -71,31 +73,53 @@ def discover_adb_port(device_ip: str, timeout: int = 10, fallback_port: int = PO
     return fallback_port
 
 
-def get_adb_signer(key_path: str = "/data/adbkey") -> PythonRSASigner:
-    """Get or generate RSA keys required for ADB authorization."""
-    os.makedirs(os.path.dirname(key_path), exist_ok=True)
+def discover_pairing_port(device_ip: str, timeout: int = 10) -> int:
+    zeroconf = Zeroconf()
+    listener = ADBPortListener(device_ip)
 
-    if not os.path.exists(key_path):
-        logger.info("Generating new RSA keys for ADB...")
-        keygen(key_path)
+    logger.info(f"mDNS: Browsing for ADB pairing port on {device_ip}...")
+    browser = ServiceBrowser(zc=zeroconf, type_=MDNS_PAIRING_SERVICE, listener=listener)
 
-    with open(key_path) as f:
-        priv = f.read()
-    with open(key_path + '.pub') as f:
-        pub = f.read()
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if listener.discovered_port:
+            break
+        time.sleep(0.1)
 
-    return PythonRSASigner(pub, priv)
+    zeroconf.close()
+
+    if listener.discovered_port:
+        logger.info(f"mDNS: Successfully discovered ADB port {listener.discovered_port} for {device_ip}.")
+        return listener.discovered_port
+
+    raise RuntimeError(f"mDNS: Could not discover port for {device_ip} within {timeout} seconds.")
+
+def pair_device(device_ip: str, pairing_port: int, pairing_code: str) -> bool:
+    target = f"{device_ip}:{pairing_port}"
+    print(f"Parowanie z {target} przy użyciu kodu {pairing_code}...")
+
+    res = subprocess.run(
+        ["adb", "pair", target, str(pairing_code)],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+
+    output = res.stdout.strip() or res.stderr.strip()
+    logger.info(f"Wynik parowania ADB: {output}")
+
+    print(f"Wynik parowania: {res}")
+
+    return True
 
 
-def get_connected_device() -> AdbDeviceTcp:
-    target_port = discover_adb_port(device_ip=DEVICE_IP)
+def get_connected_device() -> AdbDevice:
+    port = discover_connect_port(DEVICE_IP)
+    logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{port}...")
+    target = f"{DEVICE_IP}:{port}"
+    adb.connect(target)
 
-    device = AdbDeviceTcp(DEVICE_IP, target_port)
-    signer = get_adb_signer()
-
-    logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{target_port}...")
-    device.connect(rsa_keys=[signer], auth_timeout_s=5)
-    return device
+    return adb.device(target)
 
 
 def check_connection_and_pair() -> str:
@@ -107,7 +131,6 @@ def check_connection_and_pair() -> str:
         device = get_connected_device()
         # Run a simple shell command to verify the session is fully authorized
         test_output = device.shell("echo 'Connection active'")
-        device.close()
 
         return f"Successfully connected and authorized. Response: {test_output.strip()}"
 
@@ -154,7 +177,6 @@ def run_app(package_name: str, media_uri: str = "") -> str:
             logger.info(f"Launching app standard way: {command}")
 
         result = device.shell(command)
-        device.close()
 
         return f"Successfully launched {package_name} on {DEVICE_IP}. Output: {result}"
 
@@ -186,8 +208,6 @@ def get_device_status() -> str:
 
         # 5. Fetch simplified volume info safely
         audio_output = device.shell("dumpsys audio | grep -m 5 'Volume'")
-
-        device.close()
 
         # Truncate long outputs to keep context clean for the AI model
         media_trimmed = media_output[:1500] if len(media_output) > 1500 else media_output
@@ -223,7 +243,6 @@ def list_installed_apps(third_party_only: bool = True) -> str:
 
         logger.info(f"Fetching installed apps with command: {command}")
         result = device.shell(command)
-        device.close()
 
         # Clean up output format (remove 'package:' prefix for cleaner reading)
         cleaned_apps = "\n".join([line.replace("package:", "").strip() for line in result.splitlines() if line.strip()])
