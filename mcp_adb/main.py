@@ -402,4 +402,6 @@ def get_screen_content() -> ToolResult:
 
 
 if __name__ == "__main__":
+    import sys
+    sys.argv = ["main.py"]
     mcp.run(transport="sse", host="0.0.0.0", port=8555)
