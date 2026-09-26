@@ -16,39 +16,11 @@ PORT = int(port_env) if port_env and port_env.isdigit() else 5555
 
 mcp = FastMCP("Android Debug Bridge")
 
-
-class ColoredFormatter(logging.Formatter):
-    """Custom log formatter to add ANSI colors based on log level."""
-
-    # ANSI color codes
-    GREY = "\x1b[38;20m"
-    GREEN = "\x1b[32;20m"
-    YELLOW = "\x1b[33;20m"
-    RED = "\x1b[31;20m"
-    BOLD_RED = "\x1b[31;1m"
-    RESET = "\x1b[0m"
-
-    format_str = "%(asctime)s - %(levelname)s - %(message)s"
-
-    FORMATS = {
-        logging.DEBUG: GREY + format_str + RESET,
-        logging.INFO: GREEN + format_str + RESET,
-        logging.WARNING: YELLOW + format_str + RESET,
-        logging.ERROR: RED + format_str + RESET,
-        logging.CRITICAL: BOLD_RED + format_str + RESET
-    }
-
-    def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno, self.FORMATS[logging.INFO])
-        formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
-        return formatter.format(record)
-
-
 logger = logging.getLogger("mcp_adb")
-logger.setLevel(logging.INFO)
-
+logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(ColoredFormatter())
+handler.setLevel(logging.DEBUG)
+logger.addHandler(handler)
 
 
 class ADBPortListener:
@@ -75,12 +47,12 @@ class ADBPortListener:
                 logger.info(f"mDNS: Discovered ADB port {info.port} for IP {self.target_ip} (Service: {name})")
 
 
-def discover_adb_port(target_ip: str, timeout: int = 4, fallback_port: int = 5555) -> int:
+def discover_adb_port(device_ip: str, timeout: int = 10, fallback_port: int = PORT) -> int:
     zeroconf = Zeroconf()
-    listener = ADBPortListener(target_ip)
-    service_type = "_adb._tcp.local."
+    listener = ADBPortListener(device_ip)
+    service_type = "_adb-tls-connect._tcp.local."
 
-    logger.info(f"mDNS: Browsing for ADB connect port on {target_ip}...")
+    logger.info(f"mDNS: Browsing for ADB connect port on {device_ip}...")
     browser = ServiceBrowser(zeroconf, service_type, listener)
 
     start_time = time.time()
@@ -92,9 +64,10 @@ def discover_adb_port(target_ip: str, timeout: int = 4, fallback_port: int = 555
     zeroconf.close()
 
     if listener.discovered_port:
+        logger.info(f"mDNS: Successfully discovered ADB port {listener.discovered_port} for {device_ip}.")
         return listener.discovered_port
 
-    logger.warning(f"mDNS: Could not discover port for {target_ip}, falling back to {fallback_port}.")
+    logger.warning(f"mDNS: Could not discover port for {device_ip}, falling back to {fallback_port}.")
     return fallback_port
 
 
@@ -115,7 +88,7 @@ def get_adb_signer(key_path: str = "/data/adbkey") -> PythonRSASigner:
 
 
 def get_connected_device() -> AdbDeviceTcp:
-    target_port = discover_adb_port(DEVICE_IP)
+    target_port = discover_adb_port(device_ip=DEVICE_IP)
 
     device = AdbDeviceTcp(DEVICE_IP, target_port)
     signer = get_adb_signer()
@@ -123,6 +96,7 @@ def get_connected_device() -> AdbDeviceTcp:
     logger.info(f"Attempting to connect and authorize connection to {DEVICE_IP}:{target_port}...")
     device.connect(rsa_keys=[signer], auth_timeout_s=5)
     return device
+
 
 def check_connection_and_pair() -> str:
     """
