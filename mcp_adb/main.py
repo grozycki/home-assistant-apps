@@ -78,7 +78,7 @@ class ADBPortListener:
 def discover_adb_port(target_ip: str, timeout: int = 4, fallback_port: int = 5555) -> int:
     zeroconf = Zeroconf()
     listener = ADBPortListener(target_ip)
-    service_type = "_adb-tls-connect._tcp.local."
+    service_type = "_adb._tcp.local."
 
     logger.info(f"mDNS: Browsing for ADB connect port on {target_ip}...")
     browser = ServiceBrowser(zeroconf, service_type, listener)
@@ -124,8 +124,6 @@ def get_connected_device() -> AdbDeviceTcp:
     device.connect(rsa_keys=[signer], auth_timeout_s=5)
     return device
 
-
-@mcp.tool()
 def check_connection_and_pair() -> str:
     """
     Test the connection to the Android device and verify RSA key authorization.
