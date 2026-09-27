@@ -327,13 +327,10 @@ def get_current_app() -> ToolResult:
             activity_name = "unknown"
 
         return ToolResult(
-            content=f"Current app on {DEVICE_IP}: {package_name}/{activity_name}",
             structured_content={
-                "device_ip": DEVICE_IP,
                 "package_name": package_name,
                 "activity": activity_name,
                 "is_home_screen": "launcher" in package_name.lower(),
-                "raw_output": output.strip()
             }
         )
 
@@ -342,7 +339,6 @@ def get_current_app() -> ToolResult:
         raise ToolError(f"Failed to get current app on {DEVICE_IP}: {e}")
 
 def parse_ui_hierarchy(xml_string: str) -> list[dict]:
-    """Parsuje plik XML z uiautomator i wyciąga tylko widoczne elementy tekstowe oraz interaktywne."""
     elements = []
     try:
         root = ET.fromstring(xml_string)
@@ -367,6 +363,54 @@ def parse_ui_hierarchy(xml_string: str) -> list[dict]:
 
     return elements
 
+@mcp.tool()
+def get_media_session() -> ToolResult:
+    """
+    Retrieves current active media playback info (state: PLAYING/PAUSED, active media app).
+    """
+    try:
+        device = get_connected_device()
+        output = device.shell("dumpsys media_session | grep -E 'state=PlaybackState|package='")
+
+        is_playing = "state=3" in output # 3 = PlaybackState.STATE_PLAYING
+
+        return ToolResult(
+            structured_content={
+                "is_playing": is_playing,
+                "details": output.strip()
+            }
+        )
+    except Exception as e:
+        raise ToolError(f"Failed to get media session: {e}")
+
+@mcp.tool()
+def send_key(key: str) -> ToolResult:
+    """
+    Simulate pressing a remote control key.
+    Supported keys: HOME, BACK, ENTER, UP, DOWN, LEFT, RIGHT, PLAY, PAUSE, PLAY_PAUSE, MUTE, VOLUME_UP, VOLUME_DOWN.
+    """
+    key_map = {
+        "HOME": "3", "BACK": "4", "ENTER": "66", "CENTER": "23",
+        "UP": "19", "DOWN": "20", "LEFT": "21", "RIGHT": "22",
+        "PLAY": "126", "PAUSE": "127", "PLAY_PAUSE": "85",
+        "MUTE": "164", "VOLUME_UP": "24", "VOLUME_DOWN": "25"
+    }
+
+    key_upper = key.upper()
+    keycode = key_map.get(key_upper, key)
+
+    try:
+        device = get_connected_device()
+        device.shell(f"input keyevent {keycode}")
+        return ToolResult(
+            structured_content={
+                "key_sent": key_upper,
+                "status": "success"
+            }
+        )
+    except Exception as e:
+        raise ToolError(f"Failed to send key {key}: {e}")
+
 
 @mcp.tool()
 def get_screen_content() -> ToolResult:
@@ -386,9 +430,7 @@ def get_screen_content() -> ToolResult:
         focused_window = device.shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'").strip()
 
         return ToolResult(
-            content=f"Screen content on {DEVICE_IP}: {len(visible_elements)} elements found",
             structured_content={
-                "device_ip": DEVICE_IP,
                 "focused_window": focused_window,
                 "element_count": len(visible_elements),
                 "visible_elements": visible_elements
