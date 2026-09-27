@@ -20,6 +20,7 @@ WORKDIR /data
 
 COPY run.sh /
 COPY main.py /
+COPY adb_discovery.py /
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
