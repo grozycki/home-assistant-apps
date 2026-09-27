@@ -21,7 +21,7 @@ MDNS_ADB_SERVICE = "_adb._tcp.local."
 # os.makedirs("/data/.android", exist_ok=True)
 
 # Read configuration from environment variables with fallback defaults
-DEVICE_IP = os.getenv("DEVICE_IP", "127.0.0.1")
+DEVICE_IP = os.getenv("DEVICE_IP", "10.1.0.3")
 # Handle potential empty string values from environment variables
 port_env = os.getenv("PORT")
 PORT = int(port_env) if port_env and port_env.isdigit() else 5555
@@ -127,7 +127,7 @@ def get_connected_device(device_ip: str = DEVICE_IP) -> AdbDevice:
     logger.info(f"Connection result: {result}.")
     logger.debug(f"Device list: {adb.device_list()}")
     try:
-        return adb.device()
+        return adb.device(serial=target)
     except AdbError as e:
         logger.error(f"Failed to get device for {target}: {e}")
 
@@ -153,22 +153,38 @@ def run_app(package_name: str, media_uri: str = "") -> ToolResult:
         device = get_connected_device()
 
         if media_uri:
-            logger.info(f"Force stopping {package_name} to ensure clean launch...")
-            device.shell(f"am force-stop {package_name}")
+            vod_packages = ["com.disney.disneyplus", "com.amazon.amazonvideo.livingroom", "com.netflix.ninja"]
+            should_force_stop = not any(pkg in package_name for pkg in vod_packages)
+
+            if should_force_stop:
+                logger.info(f"Force stopping {package_name}...")
+                device.shell(f"am force-stop {package_name}")
+            else:
+                logger.debug(f"Pominięto force-stop dla aplikacji VOD: {package_name}, aby zachować sesję profilu.")
 
             if "netflix.com/title/" in media_uri:
                 title_id = media_uri.split("/title/")[-1].split("/")[0]
-                nflx_uri = f"nflx://www.netflix.com/title/{title_id}"
-                command = f"am start -a android.intent.action.VIEW -d '{nflx_uri}' {package_name}"
+                uri = f"nflx://www.netflix.com/title/{title_id}"
+                command = f"am start -a android.intent.action.VIEW -d '{uri}' {package_name}"
+
+            elif "primevideo.com" in media_uri and "gti=" in media_uri:
+                gti_id = media_uri.split("gti=")[-1].split("&")[0]
+                uri = f"primevideo://gti/{gti_id}"
+                command = f"am start -a android.intent.action.VIEW -d '{uri}' {package_name}"
+
+            elif "disneyplus.com" in media_uri:
+                # Disney+ obsługuje bezpośrednie linki HTTPS jako deep linki
+                command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
+
             else:
                 command = f"am start -a android.intent.action.VIEW -d '{media_uri}' {package_name}"
-            logger.info(f"Launching app with deep link: {command}")
+
+            logger.info(f"Launching VOD with deep link: {command}")
         else:
             command = (
                 f"monkey -p {package_name} -c android.intent.category.LEANBACK_LAUNCHER 1 || "
                 f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
             )
-            logger.info(f"Launching app via package category: {command}")
 
         result = device.shell(command)
 
