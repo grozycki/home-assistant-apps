@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import Callable, Any
+from typing import Callable
 
 from adb_shell.adb_device import AdbDevice
 from fastmcp import FastMCP
@@ -36,7 +36,7 @@ class GoogleTVKeycode(str, Enum):
     MEDIA_REWIND = "KEYCODE_MEDIA_REWIND"
 
 
-def register_remote_tools(mcp: FastMCP, get_connected_device: Callable[[str], Any]) -> None:
+def register_remote_tools(mcp: FastMCP, get_connected_device: Callable[[str], AdbDevice]) -> None:
     """
     Registers all Google TV remote tools onto the provided FastMCP instance.
 
@@ -54,7 +54,7 @@ def register_remote_tools(mcp: FastMCP, get_connected_device: Callable[[str], An
             device_uuid: Optional target device UUID, friendly name, or IP.
         """
         try:
-            adb_device: AdbDevice = get_connected_device(device_uuid=device_uuid)
+            adb_device: AdbDevice = get_connected_device(device_uuid)
             adb_device.shell(f"input keyevent {button.value}")
 
             return ToolResult('Success')
