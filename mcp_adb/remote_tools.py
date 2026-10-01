@@ -2,7 +2,7 @@ import logging
 from enum import Enum
 from typing import Callable
 
-from adb_shell.adb_device import AdbDevice
+from adbutils import AdbDevice
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
