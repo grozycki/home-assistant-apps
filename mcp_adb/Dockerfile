@@ -25,6 +25,7 @@ COPY adb_discovery.py /
 COPY app_tools.py /
 COPY device_manager.py /
 COPY pairing_tools.py /
+COPY system_tools.py /
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]

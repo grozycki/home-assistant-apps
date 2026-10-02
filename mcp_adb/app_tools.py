@@ -40,7 +40,7 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         """
         Retrieve the currently active application on the configured Android device.
         """
-        adb_device: AdbDevice = device_manager.get_connected_device(device_uuid)
+        adb_device: AdbDevice = device_manager.get_connected_device(device_uuid=device_uuid)
         try:
             current_app = adb_device.app_current()
             return ToolResult(
@@ -68,25 +68,27 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
             deep_link: Optional deep-link URI to open specific video/audio content directly inside the app
         """
 
-        adb_device: AdbDevice = device_manager.get_connected_device(device_uuid)
+        adb_device: AdbDevice = device_manager.get_connected_device(device_uuid=device_uuid)
 
         _ensure_screen_on(adb_device=adb_device)
 
         try:
             if deep_link:
                 logger.info(f"Launching app via ADB with deep link: {package_name} on device {device_uuid}...")
-                #adb_device.app_start(package_name=package_name, activity=f"android.intent.action.VIEW -d '{deep_link}'")
+                # adb_device.app_start(package_name=package_name, activity=f"android.intent.action.VIEW -d '{deep_link}'")
                 cmd = f"am start -a android.intent.action.VIEW -d '{deep_link}' -p {package_name}"
-                adb_device.shell(cmd)
+                output = adb_device.shell(cmd)
             else:
                 logger.info(f"Launching app via ADB: {package_name} on device {device_uuid}...")
-                adb_device.app_start(package_name=package_name)
+                output = adb_device.app_start(package_name=package_name)
 
             return ToolResult(
                 structured_content={
                     "device_uuid": device_uuid,
                     "package_name": package_name,
-                    "deep_link": deep_link
+                    "deep_link": deep_link,
+                    "output": output.strip() if output else "OK",
+                    "note": "If the app requires profile selection, use remote tools (like press_select or dpad navigation) to choose the profile."
                 })
 
         except Exception as e:
