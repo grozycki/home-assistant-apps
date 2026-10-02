@@ -75,7 +75,9 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         try:
             if deep_link:
                 logger.info(f"Launching app via ADB with deep link: {package_name} on device {device_uuid}...")
-                adb_device.app_start(package_name=package_name, activity=f"android.intent.action.VIEW -d '{deep_link}'")
+                #adb_device.app_start(package_name=package_name, activity=f"android.intent.action.VIEW -d '{deep_link}'")
+                cmd = f"am start -a android.intent.action.VIEW -d '{deep_link}' -p {package_name}"
+                adb_device.shell(cmd)
             else:
                 logger.info(f"Launching app via ADB: {package_name} on device {device_uuid}...")
                 adb_device.app_start(package_name=package_name)
