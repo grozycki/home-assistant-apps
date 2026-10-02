@@ -1,4 +1,4 @@
-import logging
+from logging import Logger
 
 from adbutils import AdbDevice
 from fastmcp import FastMCP
@@ -7,10 +7,8 @@ from fastmcp.tools import ToolResult
 
 from device_manager import DeviceManager
 
-logger = logging.getLogger("mcp_adb")
 
-
-def register_app_tools(mcp: FastMCP, device_manager: DeviceManager) -> None:
+def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logger) -> None:
 
     @mcp.tool()
     def start_media_uri(device_uuid: str, package_name: str, media_uri: str) -> ToolResult:

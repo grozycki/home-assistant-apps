@@ -1,5 +1,5 @@
-import logging
 import subprocess
+from logging import Logger
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -7,10 +7,8 @@ from fastmcp.tools import ToolResult
 
 from adb_discovery import ADBAutoDiscovery
 
-logger = logging.getLogger("mcp_adb")
 
-
-def register_pairing_tools(mcp: FastMCP, adb_discovery: ADBAutoDiscovery) -> None:
+def register_pairing_tools(mcp: FastMCP, adb_discovery: ADBAutoDiscovery, logger: Logger) -> None:
     @mcp.tool()
     def list_discovered_devices() -> ToolResult:
         """

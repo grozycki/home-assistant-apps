@@ -1,5 +1,5 @@
-import logging
 from enum import Enum
+from logging import Logger
 
 from adbutils import AdbDevice
 from fastmcp import FastMCP
@@ -7,8 +7,6 @@ from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
 
 from device_manager import DeviceManager
-
-logger = logging.getLogger("mcp_adb")
 
 
 class GoogleTVKeycode(str, Enum):
@@ -37,13 +35,14 @@ class GoogleTVKeycode(str, Enum):
     MEDIA_REWIND = "KEYCODE_MEDIA_REWIND"
 
 
-def register_remote_tools(mcp: FastMCP, device_manager: DeviceManager) -> None:
+def register_remote_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logger) -> None:
     """
     Registers all Google TV remote tools onto the provided FastMCP instance.
 
     Args:
         mcp: The active FastMCP server instance.
         device_manager: The device manager instance.
+        logger: The logger instance.
     """
 
     def _press_remote_button(button: GoogleTVKeycode, device_uuid: str) -> ToolResult:

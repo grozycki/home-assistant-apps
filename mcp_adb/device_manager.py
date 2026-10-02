@@ -1,3 +1,5 @@
+from logging import Logger
+
 from adbutils import AdbDevice
 from fastmcp.exceptions import ToolError
 
@@ -9,8 +11,9 @@ class DeviceManager:
     Manages ADB connections and lifecycle, bridging mDNS auto-discovery
     with active ADB socket connections.
     """
-    def __init__(self, adb_discovery: ADBAutoDiscovery):
+    def __init__(self, adb_discovery: ADBAutoDiscovery, logger: Logger):
         self.adb_discovery = adb_discovery
+        self.logger = logger
 
     def get_connected_device(self, device_uuid: str) -> AdbDevice:
         """
@@ -44,14 +47,14 @@ class DeviceManager:
             )
 
         target = f"{ip}:{connect_port}"
-        logger.info(f"Attempting to connect to {target}...")
+        self.logger.info(f"Attempting to connect to {target}...")
 
         # 2. Execute ADB connect
         try:
             result = adb.connect(addr=target, timeout=10)
-            logger.info(f"Connection result string: '{result}'")
+            self.logger.info(f"Connection result string: '{result}'")
         except Exception as e:
-            logger.error(f"Failed to issue connect command to {target}: {e}")
+            self.logger.error(f"Failed to issue connect command to {target}: {e}")
             raise ToolError(f"Failed to connect to {target}: {e}")
 
         # 3. Check if ADB connect returned an error string instead of succeeding
@@ -65,7 +68,7 @@ class DeviceManager:
         # 4. Verify that the device is actually listed in active ADB devices
         connected_devices = adb.device_list()
         connected_serials = [d.serial for d in connected_devices]
-        logger.debug(f"Active connected ADB serials: {connected_serials}")
+        self.logger.debug(f"Active connected ADB serials: {connected_serials}")
 
         if target not in connected_serials and ip not in connected_serials:
             raise ToolError(

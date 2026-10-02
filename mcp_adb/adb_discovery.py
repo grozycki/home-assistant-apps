@@ -1,10 +1,8 @@
-import logging
 import threading
+from logging import Logger
 from typing import TypedDict, Optional
 
 from zeroconf import Zeroconf, ServiceBrowser
-
-logger = logging.getLogger("mcp_adb")
 
 
 class DiscoveredDevice(TypedDict):
@@ -22,7 +20,7 @@ class ADBAutoDiscovery:
     port rotations, and filtering out pure Chromecast devices.
     """
 
-    def __init__(self):
+    def __init__(self, logger: Logger):
         self._service_types = [
             "_adb-tls-connect._tcp.local.",
             "_adb-tls-pairing._tcp.local.",
@@ -39,6 +37,7 @@ class ADBAutoDiscovery:
         self._zeroconf = None
         self._browsers = []
         self._is_running = False
+        self._logger = logger
 
     class _MDNSListener:
         """
@@ -153,12 +152,12 @@ class ADBAutoDiscovery:
                     old_port = dev["connect_port"]
                     dev["connect_port"] = port
                     if old_port != port:
-                        logger.info(f"[ADB Discovery] Device '{dev['friendly_name']}' ({addr}) -> connect port: {port}")
+                        self._logger.info(f"[ADB Discovery] Device '{dev['friendly_name']}' ({addr}) -> connect port: {port}")
                 elif "_adb-tls-pairing" in type_:
                     old_port = dev["pairing_port"]
                     dev["pairing_port"] = port
                     if old_port != port:
-                        logger.info(f"[ADB Discovery] Device '{dev['friendly_name']}' ({addr}) -> pairing port: {port}")
+                        self._logger.info(f"[ADB Discovery] Device '{dev['friendly_name']}' ({addr}) -> pairing port: {port}")
 
     def start(self):
         """Starts background mDNS listeners."""
@@ -170,7 +169,7 @@ class ADBAutoDiscovery:
             listener = self._MDNSListener(self)
             self._browsers = [ServiceBrowser(self._zeroconf, stype, listener) for stype in self._service_types]
             self._is_running = True
-            logger.info("[ADB Discovery] Background mDNS listener started successfully.")
+            self._logger.info("[ADB Discovery] Background mDNS listener started successfully.")
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -181,7 +180,7 @@ class ADBAutoDiscovery:
                 browser.cancel()
             self._zeroconf.close()
             self._is_running = False
-            logger.info("[ADB Discovery] Background listener stopped.")
+            self._logger.info("[ADB Discovery] Background listener stopped.")
 
     def get_devices(self) -> dict[str, DiscoveredDevice]:
         """
