@@ -17,7 +17,6 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         This function is intended to be used internally by app_start when a media_uri is provided.
         """
         adb_device: AdbDevice = device_manager.get_connected_device(device_uuid=device_uuid)
-        adb_device.is_screen_on()
 
         try:
             logger.info(f"Starting media URI via ADB: {media_uri} on device {device_uuid}...")

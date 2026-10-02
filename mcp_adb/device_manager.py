@@ -1,6 +1,6 @@
 from logging import Logger
 
-from adbutils import AdbDevice
+from adbutils import adb, AdbDevice
 from fastmcp.exceptions import ToolError
 
 from adb_discovery import ADBAutoDiscovery, DiscoveredDevice
@@ -11,6 +11,7 @@ class DeviceManager:
     Manages ADB connections and lifecycle, bridging mDNS auto-discovery
     with active ADB socket connections.
     """
+
     def __init__(self, adb_discovery: ADBAutoDiscovery, logger: Logger):
         self.adb_discovery = adb_discovery
         self.logger = logger
