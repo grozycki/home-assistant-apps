@@ -1,5 +1,6 @@
 import time
 from logging import Logger
+from typing import Optional
 
 from adbutils import AdbDevice
 from fastmcp import FastMCP
@@ -10,32 +11,6 @@ from device_manager import DeviceManager
 
 
 def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logger) -> None:
-    @mcp.tool()
-    def start_media_uri(device_uuid: str, package_name: str, media_uri: str) -> ToolResult:
-        """
-        Start a media URI (deep link) on the configured Android device.
-        This function is intended to be used internally by app_start when a media_uri is provided.
-        """
-        adb_device: AdbDevice = device_manager.get_connected_device(device_uuid=device_uuid)
-
-        _ensure_screen_on(adb_device=adb_device)
-
-        try:
-            logger.info(f"Starting media URI via ADB: {media_uri} on device {device_uuid}...")
-            adb_device.app_start(package_name=package_name, activity=f"android.intent.action.VIEW -d '{media_uri}'")
-
-            return ToolResult(
-                structured_content={
-                    "device_uuid": device_uuid,
-                    "package_name": package_name,
-                    "media_uri": media_uri
-                })
-
-        except Exception as e:
-            logger.error(f"Error starting media URI via ADB: {e}")
-
-            raise ToolError(f"Failed to start media URI {media_uri} for {package_name}")
-
     @mcp.tool()
     def list_installed_apps(device_uuid: str) -> ToolResult:
         """
@@ -82,13 +57,15 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
             raise ToolError(f"Failed to retrieve current app")
 
     @mcp.tool()
-    def launch_app(device_uuid: str, package_name: str) -> ToolResult:
+    def launch_app(device_uuid: str, package_name: str, deep_link: Optional[str] = None) -> ToolResult:
         """
-        Run an application on the configured Android device.
+        Run an application on the configured Android TV device.
+        Automatically wakes up the screen if the TV is in standby mode.
 
         Args:
             package_name: The package name of the application (e.g., 'com.disney.disneyplus')
             device_uuid: The UUID of the device to run the application on
+            deep_link: Optional deep-link URI to open specific video/audio content directly inside the app
         """
 
         adb_device: AdbDevice = device_manager.get_connected_device(device_uuid)
@@ -96,13 +73,18 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         _ensure_screen_on(adb_device=adb_device)
 
         try:
-            logger.info(f"Launching app via ADB: {package_name} on device {device_uuid}...")
-            adb_device.app_start(package_name=package_name)
+            if deep_link:
+                logger.info(f"Launching app via ADB with deep link: {package_name} on device {device_uuid}...")
+                adb_device.app_start(package_name=package_name, activity=f"android.intent.action.VIEW -d '{deep_link}'")
+            else:
+                logger.info(f"Launching app via ADB: {package_name} on device {device_uuid}...")
+                adb_device.app_start(package_name=package_name)
 
             return ToolResult(
                 structured_content={
                     "device_uuid": device_uuid,
                     "package_name": package_name,
+                    "deep_link": deep_link
                 })
 
         except Exception as e:
