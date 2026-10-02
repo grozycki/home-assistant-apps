@@ -5,7 +5,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
 
-from mcp_adb.adb_discovery import ADBAutoDiscovery
+from adb_discovery import ADBAutoDiscovery
 
 logger = logging.getLogger("mcp_adb")
 
