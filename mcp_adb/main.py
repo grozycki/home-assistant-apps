@@ -9,10 +9,6 @@ from device_manager import DeviceManager
 from pairing_tools import register_pairing_tools
 from remote_tools import register_remote_tools
 
-MDNS_PAIRING_SERVICE = "_adb-tls-pairing._tcp.local."
-MDNS_CONNECT_SERVICE = "_adb-tls-connect._tcp.local."
-MDNS_ADB_SERVICE = "_adb._tcp.local."
-
 mcp = FastMCP("Android Debug Bridge")
 
 adb_discovery = ADBAutoDiscovery()
