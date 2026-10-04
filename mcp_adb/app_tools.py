@@ -134,7 +134,27 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         _ensure_screen_on(adb_device=adb_device)
 
         adb_device.keyevent("KEYCODE_HOME")
-        time.sleep(1)
+
+        timeout = 4.0
+        start_time = time.time()
+        is_safe_to_search = False
+
+        while time.time() - start_time < timeout:
+            try:
+                focus_output = adb_device.shell("dumpsys window | grep mCurrentFocus")
+                if focus_output:
+                    focus_lower = focus_output.lower()
+                    if "launcher" in focus_lower or "home" in focus_lower:
+                        logger.info("Confirmed return to home screen/launcher. Safe to trigger global search.")
+                        is_safe_to_search = True
+                        break
+            except Exception as inner_e:
+                logger.debug(f"Focus check iteration failed: {inner_e}")
+
+            time.sleep(0.3)
+
+        if not is_safe_to_search:
+            logger.warning("Timeout reached waiting for launcher focus. Forcing global search anyway.")
 
         try:
             cmd = f"am start -a android.search.action.GLOBAL_SEARCH --es query '{query}'"
