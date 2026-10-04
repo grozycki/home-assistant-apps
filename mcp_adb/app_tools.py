@@ -133,6 +133,9 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
 
         _ensure_screen_on(adb_device=adb_device)
 
+        adb_device.keyevent("KEYCODE_HOME")
+        time.sleep(1)
+
         try:
             cmd = f"am start -a android.search.action.GLOBAL_SEARCH --es query '{query}'"
             output = adb_device.shell(cmd)
