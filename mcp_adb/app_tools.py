@@ -68,6 +68,8 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
             deep_link: Optional deep-link URI to open specific video/audio content directly inside the app
         """
 
+        _validate_app_launch_constraints(package_name, deep_link)
+
         adb_device: AdbDevice = device_manager.get_connected_device(device_uuid=device_uuid)
 
         _ensure_screen_on(adb_device=adb_device)
@@ -130,6 +132,8 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         adb_device = device_manager.get_connected_device(device_uuid)
         logger.info(f"Triggering global search with query: '{query}' on {adb_device.serial}")
 
+        _ensure_screen_on(adb_device=adb_device)
+
         try:
             cmd = f"am start -a android.search.action.GLOBAL_SEARCH --es query '{query}'"
             output = adb_device.shell(cmd)
@@ -173,3 +177,16 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
 
         except Exception as e:
             logger.warning(f"Could not verify or ensure screen state: {e}. Proceeding anyway...")
+
+    def _validate_app_launch_constraints(package_name: str, deep_link: Optional[str]) -> None:
+        """
+        Private validation helper to enforce application-specific workarounds
+        and block unsupported parameters by raising actionable ToolErrors.
+        """
+        if package_name == "com.netflix.ninja" and deep_link:
+            logger.warning("Attempted to use deep_link with Netflix - rejecting to enforce global search workaround.")
+            raise ToolError(
+                "Netflix (com.netflix.ninja) does not support direct deep links. "
+                "The intent will be ignored by the Ninja engine. "
+                "Please check the guide resource 'app://guide/com.netflix.ninja' "
+            )
