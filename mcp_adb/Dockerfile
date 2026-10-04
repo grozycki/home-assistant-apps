@@ -5,14 +5,16 @@ ENV PYTHONUNBUFFERED=1
 ENV HOME=/data
 ENV ADB_VENDOR_KEYS=/data/.android/adbkey
 
+ENV VIRTUAL_ENV="/opt/venv"
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 RUN \
   apk add --no-cache \
     python3 \
     py3-uv \
     android-tools
 
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+RUN python3 -m venv $VIRTUAL_ENV
 
 RUN uv pip install fastmcp adbutils zeroconf
 
@@ -28,6 +30,7 @@ COPY pairing_tools.py /
 COPY system_tools.py /
 COPY app_resources.py /
 COPY guides/ /guides/
+
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
