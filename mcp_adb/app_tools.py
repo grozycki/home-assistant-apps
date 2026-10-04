@@ -118,6 +118,37 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
 
             raise ToolError(f"Failed to stop {package_name}")
 
+    @mcp.tool()
+    def trigger_global_search(device_uuid: str, query: str) -> ToolResult:
+        """
+        Triggers the Android TV global search intent with a custom query string.
+
+        Args:
+            device_uuid: UUID, friendly name, or IP of the target device
+            query: The search text to pass to global search (e.g., 'Play Inception on Netflix')
+        """
+        adb_device = device_manager.get_connected_device(device_uuid)
+        logger.info(f"Triggering global search with query: '{query}' on {adb_device.serial}")
+
+        try:
+            cmd = f"am start -a android.search.action.GLOBAL_SEARCH --es query '{query}'"
+            output = adb_device.shell(cmd)
+
+            return ToolResult(
+                content=f"Successfully triggered global search with query: '{query}'",
+                structured_content={
+                    "status": "success",
+                    "action": "global_search",
+                    "query": query,
+                    "output": output.strip() if output else "OK",
+                    "hint": "If search results require confirmation, send input keyevent 66 (ENTER)."
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to execute global search: {e}")
+            raise ToolError(f"Failed to trigger global search")
+
     def _ensure_screen_on(adb_device: AdbDevice, timeout: int = 10) -> None:
         """Checks if the Android TV screen is awake, and wakes it up if it's sleeping."""
         try:

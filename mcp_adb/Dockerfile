@@ -26,6 +26,8 @@ COPY app_tools.py /
 COPY device_manager.py /
 COPY pairing_tools.py /
 COPY system_tools.py /
+COPY app_resources.py /
+COPY guides/ /guides/
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
