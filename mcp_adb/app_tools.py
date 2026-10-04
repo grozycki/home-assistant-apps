@@ -68,10 +68,9 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
             deep_link: Optional deep-link URI to open specific video/audio content directly inside the app
         """
 
-        _validate_app_launch_constraints(package_name, deep_link)
-
         adb_device: AdbDevice = device_manager.get_connected_device(device_uuid=device_uuid)
 
+        _validate_app_launch_constraints(adb_device=adb_device, package_name=package_name, deep_link=deep_link)
         _ensure_screen_on(adb_device=adb_device)
 
         try:
@@ -178,11 +177,19 @@ def register_app_tools(mcp: FastMCP, device_manager: DeviceManager, logger: Logg
         except Exception as e:
             logger.warning(f"Could not verify or ensure screen state: {e}. Proceeding anyway...")
 
-    def _validate_app_launch_constraints(package_name: str, deep_link: Optional[str]) -> None:
+    def _validate_app_launch_constraints(adb_device: AdbDevice, package_name: str, deep_link: Optional[str]) -> None:
         """
         Private validation helper to enforce application-specific workarounds
         and block unsupported parameters by raising actionable ToolErrors.
         """
+        installed_packages = adb_device.list_packages()
+
+        if package_name not in installed_packages:
+            raise ToolError(
+                f"Application with package '{package_name}' is not installed on the target device. "
+                "Please verify the package name or check available apps."
+            )
+
         if package_name == "com.netflix.ninja" and deep_link:
             logger.warning("Attempted to use deep_link with Netflix - rejecting to enforce global search workaround.")
             raise ToolError(
