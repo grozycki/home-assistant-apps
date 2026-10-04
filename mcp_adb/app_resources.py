@@ -2,6 +2,7 @@ from logging import Logger
 from pathlib import Path
 
 from fastmcp import FastMCP
+from fastmcp.server.transforms import ResourcesAsTools
 
 
 def register_app_resources(mcp: FastMCP, logger: Logger, guides_dir: str = "guides") -> None:
@@ -30,3 +31,5 @@ def register_app_resources(mcp: FastMCP, logger: Logger, guides_dir: str = "guid
             f"No specialized navigation guide available for package '{package_name}'. "
             "Use standard Android TV navigation and check UI hierarchy if supported."
         )
+
+    mcp.add_transform(ResourcesAsTools(mcp))
